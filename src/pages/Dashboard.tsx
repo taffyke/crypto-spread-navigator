@@ -6,7 +6,11 @@ import StatCard from '@/components/dashboard/StatCard';
 import SmallStatCard from '@/components/dashboard/SmallStatCard';
 import ProfitChart, { ProfitDataPoint } from '@/components/dashboard/ProfitChart';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
+import MarketOverview from '@/components/dashboard/MarketOverview';
+import ExchangeVolume from '@/components/dashboard/ExchangeVolume';
+import NetworkFees from '@/components/dashboard/NetworkFees';
 import { generateArbitrageOpportunities, generateProfitChartData, exchanges } from '@/data/mockData';
+import { Button } from '@/components/ui/button';
 
 const Dashboard = () => {
   const [selectedExchanges, setSelectedExchanges] = React.useState<string[]>(['binance', 'coinbase', 'kucoin']);
@@ -81,45 +85,21 @@ const Dashboard = () => {
               />
             </div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-white font-medium">Minimum Spread</h3>
-              <div className="flex items-center gap-2">
-                <input 
-                  type="range" 
-                  min="0.1" 
-                  max="5" 
-                  step="0.1" 
-                  defaultValue="1" 
-                  className="w-32"
-                />
-                <span className="text-white text-sm">1.0%</span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Min Volume (24h)</span>
-                <span className="text-white">$100,000</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Fee Calculation</span>
-                <span className="text-white">Enabled</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Liquidity Check</span>
-                <span className="text-white">Enabled</span>
-              </div>
-            </div>
-          </div>
+          <NetworkFees />
         </div>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <MarketOverview />
+        <ExchangeVolume />
       </div>
       
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-white">Top Arbitrage Opportunities</h2>
-          <button className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-sm transition-colors">
+          <Button className="bg-blue-600 hover:bg-blue-500">
             View All
-          </button>
+          </Button>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -144,9 +124,9 @@ const Dashboard = () => {
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-white">Active Bots</h2>
-          <button className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-sm transition-colors">
+          <Button className="bg-blue-600 hover:bg-blue-500">
             Manage Bots
-          </button>
+          </Button>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -173,9 +153,9 @@ const Dashboard = () => {
                 <span className="text-green-500 font-medium">$583.21</span>
               </div>
             </div>
-            <button className="w-full bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded text-white text-sm transition-colors">
+            <Button className="w-full bg-slate-600 hover:bg-slate-500">
               View Details
-            </button>
+            </Button>
           </div>
           
           <div className="bg-slate-700 rounded-lg p-4 border border-slate-600">
@@ -201,9 +181,9 @@ const Dashboard = () => {
                 <span className="text-green-500 font-medium">$302.87</span>
               </div>
             </div>
-            <button className="w-full bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded text-white text-sm transition-colors">
+            <Button className="w-full bg-slate-600 hover:bg-slate-500">
               View Details
-            </button>
+            </Button>
           </div>
           
           <div className="bg-slate-700 rounded-lg p-4 border border-slate-600">
@@ -229,9 +209,9 @@ const Dashboard = () => {
                 <span className="text-green-500 font-medium">$359.24</span>
               </div>
             </div>
-            <button className="w-full bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded text-white text-sm transition-colors">
+            <Button className="w-full bg-slate-600 hover:bg-slate-500">
               View Details
-            </button>
+            </Button>
           </div>
         </div>
       </div>
