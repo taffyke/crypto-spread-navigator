@@ -1,16 +1,44 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import Dashboard from '@/pages/Dashboard';
 import Scanner from '@/pages/Scanner';
 import Bots from '@/pages/Bots';
 import { useLocation, Navigate } from 'react-router-dom';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from '@/hooks/use-toast';
+
+// Component for "Coming Soon" pages
+const ComingSoonPage = ({ pageName }: { pageName: string }) => {
+  return (
+    <div className="flex items-center justify-center h-full w-full p-8">
+      <div className="text-center max-w-md">
+        <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">{pageName}</h2>
+        <p className="text-slate-400 mb-8">
+          We're working hard to bring you real-time {pageName.toLowerCase()} features. 
+          Stay tuned for updates coming soon!
+        </p>
+        <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+          <div className="bg-blue-500 h-full rounded-full" style={{ width: '70%' }}></div>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">Development in progress: 70%</p>
+      </div>
+    </div>
+  );
+};
 
 const Index = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
+  const isMobile = useIsMobile();
+  
+  // Auto-collapse sidebar on mobile
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarCollapsed(true);
+    }
+  }, [isMobile]);
   
   // Determine which page to show based on the current path
   const renderContent = () => {
@@ -20,19 +48,22 @@ const Index = () => {
       return <Scanner />;
     } else if (path === '/bots') {
       return <Bots />;
-    } else if (path === '/analysis' || path === '/performance' || 
-               path === '/alerts' || path === '/risk' || 
-               path === '/portfolio' || path === '/history' || 
-               path === '/profile' || path === '/settings') {
-      // Show a toast notification for routes that aren't fully implemented yet
-      setTimeout(() => {
-        toast({
-          title: "Coming Soon",
-          description: "This feature is under development and will be available soon!",
-          variant: "default",
-        });
-      }, 100);
-      return <Navigate to="/" />;
+    } else if (path === '/analysis') {
+      return <ComingSoonPage pageName="Market Analysis" />;
+    } else if (path === '/performance') {
+      return <ComingSoonPage pageName="Performance Analytics" />;
+    } else if (path === '/alerts') {
+      return <ComingSoonPage pageName="Alerts Configuration" />;
+    } else if (path === '/risk') {
+      return <ComingSoonPage pageName="Risk Management" />;
+    } else if (path === '/portfolio') {
+      return <ComingSoonPage pageName="Portfolio Tracking" />;
+    } else if (path === '/history') {
+      return <ComingSoonPage pageName="Trading History" />;
+    } else if (path === '/profile') {
+      return <ComingSoonPage pageName="User Profile" />;
+    } else if (path === '/settings') {
+      return <ComingSoonPage pageName="Settings" />;
     }
     
     // Default to Dashboard for other routes

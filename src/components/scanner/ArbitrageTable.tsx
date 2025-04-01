@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { ArrowUpDown, ExternalLink } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export interface ArbitrageOpportunity {
   id: string;
@@ -30,6 +31,8 @@ type SortDirection = 'asc' | 'desc';
 const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
   const [sortKey, setSortKey] = useState<SortKey>('spreadPercentage');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const isMobile = useIsMobile();
 
   // Format currency amounts
   const formatCurrency = (value: number) => {
@@ -44,6 +47,17 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
   // Format percentage
   const formatPercentage = (value: number) => {
     return `${value.toFixed(2)}%`;
+  };
+
+  // Toggle row expansion (for mobile view)
+  const toggleRowExpansion = (id: string) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(id)) {
+      newExpandedRows.delete(id);
+    } else {
+      newExpandedRows.add(id);
+    }
+    setExpandedRows(newExpandedRows);
   };
 
   // Handle sorting
@@ -88,18 +102,119 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
   // Column component for sortable headers
   const SortableColumn = ({ label, sortableKey }: { label: string; sortableKey: SortKey }) => (
     <th
-      className="px-4 py-2 text-left cursor-pointer hover:bg-slate-700 transition-colors"
+      className="px-2 md:px-4 py-2 text-left cursor-pointer hover:bg-slate-700 transition-colors"
       onClick={() => handleSort(sortableKey)}
     >
       <div className="flex items-center space-x-1">
-        <span>{label}</span>
+        <span className="text-xs md:text-sm">{label}</span>
         {sortKey === sortableKey && (
-          <ArrowUpDown className="h-4 w-4 text-slate-400" />
+          <ArrowUpDown className="h-3 md:h-4 w-3 md:w-4 text-slate-400" />
         )}
       </div>
     </th>
   );
 
+  // Render for mobile view with expandable rows
+  if (isMobile) {
+    return (
+      <div className={cn("overflow-x-auto", className)}>
+        <table className="w-full text-xs text-white">
+          <thead className="bg-slate-800 border-b border-slate-700">
+            <tr>
+              <th className="w-8 px-2 py-2">#</th>
+              <SortableColumn label="Pair" sortableKey="pair" />
+              <SortableColumn label="Spread" sortableKey="spreadPercentage" />
+              <SortableColumn label="Profit" sortableKey="potentialProfit" />
+              <th className="w-8 px-2 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-700">
+            {sortedOpportunities.map((opportunity, index) => {
+              const isExpanded = expandedRows.has(opportunity.id);
+              
+              return (
+                <React.Fragment key={opportunity.id}>
+                  <tr 
+                    className="hover:bg-slate-800 transition-colors cursor-pointer"
+                    onClick={() => toggleRowExpansion(opportunity.id)}
+                  >
+                    <td className="px-2 py-3 text-slate-400">{index + 1}</td>
+                    <td className="px-2 py-3 font-medium">{opportunity.pair}</td>
+                    <td className={cn(
+                      "px-2 py-3 font-medium",
+                      opportunity.spreadPercentage >= 3 ? "text-green-500" : 
+                      opportunity.spreadPercentage >= 1 ? "text-yellow-500" : "text-slate-400"
+                    )}>
+                      {formatPercentage(opportunity.spreadPercentage)}
+                    </td>
+                    <td className="px-2 py-3 text-green-500 font-medium">
+                      {formatCurrency(opportunity.potentialProfit)}
+                    </td>
+                    <td className="px-2 py-3 text-center">
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </td>
+                  </tr>
+                  
+                  {isExpanded && (
+                    <tr className="bg-slate-900">
+                      <td colSpan={5} className="px-2 py-3">
+                        <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                          <div>
+                            <span className="text-slate-400 block">Buy at:</span>
+                            <span className="font-medium">{opportunity.buyExchange}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Sell at:</span>
+                            <span className="font-medium">{opportunity.sellExchange}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Buy Price:</span>
+                            <span className="font-medium">{formatCurrency(opportunity.buyPrice)}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Sell Price:</span>
+                            <span className="font-medium">{formatCurrency(opportunity.sellPrice)}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">24h Volume:</span>
+                            <span className="font-medium">{formatCurrency(opportunity.volume24h)}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Status:</span>
+                            <span className={cn(
+                              "px-1 py-0.5 rounded text-xs inline-block",
+                              opportunity.depositStatus === "OK" && opportunity.withdrawalStatus === "OK"
+                                ? "bg-green-900/30 text-green-400"
+                                : "bg-red-900/30 text-red-400"
+                            )}>
+                              {opportunity.depositStatus === "OK" && opportunity.withdrawalStatus === "OK" 
+                                ? "Ready" : "Check Status"}
+                            </span>
+                          </div>
+                        </div>
+                        <button 
+                          className="w-full p-1 bg-blue-600 hover:bg-blue-500 rounded text-xs flex items-center justify-center gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleExecuteTrade(opportunity);
+                          }}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Execute Trade
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Desktop view with full table
   return (
     <div className={cn("overflow-x-auto", className)}>
       <table className="w-full text-sm text-white">
