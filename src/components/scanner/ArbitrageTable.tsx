@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { ArrowUpDown, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 export interface ArbitrageOpportunity {
   id: string;
@@ -53,6 +54,15 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
       setSortKey(key);
       setSortDirection('desc');
     }
+  };
+
+  // Execute trade action
+  const handleExecuteTrade = (opportunity: ArbitrageOpportunity) => {
+    toast({
+      title: "Execute Trade",
+      description: `Preparing to execute ${opportunity.pair} arbitrage between ${opportunity.buyExchange} and ${opportunity.sellExchange} with ${formatPercentage(opportunity.spreadPercentage)} spread`,
+      variant: "default",
+    });
   };
 
   // Sort opportunities
@@ -153,7 +163,10 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
                 </span>
               </td>
               <td className="px-4 py-3 text-center">
-                <button className="p-1 bg-blue-600 hover:bg-blue-500 rounded inline-flex items-center justify-center">
+                <button 
+                  className="p-1 bg-blue-600 hover:bg-blue-500 rounded inline-flex items-center justify-center"
+                  onClick={() => handleExecuteTrade(opportunity)}
+                >
                   <ExternalLink className="h-4 w-4" />
                 </button>
               </td>

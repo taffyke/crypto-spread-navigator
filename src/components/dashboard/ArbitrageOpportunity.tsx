@@ -2,6 +2,8 @@
 import React from 'react';
 import { ExternalLink, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface ArbitrageOpportunityProps {
   id: string;
@@ -30,6 +32,8 @@ const ArbitrageOpportunity = ({
   volume24h,
   className,
 }: ArbitrageOpportunityProps) => {
+  const navigate = useNavigate();
+
   // Format currency amounts
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -54,6 +58,24 @@ const ArbitrageOpportunity = ({
     if (diffSec < 60) return `${diffSec}s ago`;
     if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
     return `${Math.floor(diffSec / 3600)}h ago`;
+  };
+
+  // Handle clicking details button
+  const handleViewDetails = () => {
+    toast({
+      title: "Opportunity Details",
+      description: `Viewing detailed analysis for ${pair} arbitrage between ${buyExchange} and ${sellExchange}`,
+      variant: "default",
+    });
+  };
+
+  // Handle clicking execute button
+  const handleExecuteTrade = () => {
+    toast({
+      title: "Trade Execution",
+      description: `Preparing to execute ${pair} arbitrage trade with ${formatPercentage(spreadPercentage)} spread`,
+      variant: "default",
+    });
   };
 
   return (
@@ -106,10 +128,16 @@ const ArbitrageOpportunity = ({
       </div>
       
       <div className="flex justify-end gap-2 mt-3">
-        <button className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-white transition-colors">
+        <button 
+          className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-white transition-colors"
+          onClick={handleViewDetails}
+        >
           Details
         </button>
-        <button className="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white flex items-center gap-1 transition-colors">
+        <button 
+          className="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white flex items-center gap-1 transition-colors"
+          onClick={handleExecuteTrade}
+        >
           <ExternalLink className="h-3 w-3" />
           Execute
         </button>
