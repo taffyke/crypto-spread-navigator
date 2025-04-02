@@ -1,5 +1,6 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   Bell, 
@@ -24,12 +25,85 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { notificationManager } from '@/lib/notifications/notificationSystem';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface HeaderProps {
   sidebarCollapsed?: boolean;
 }
 
 const Header = ({ sidebarCollapsed }: HeaderProps) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const searchableRoutes = [
+    { name: 'Dashboard', path: '/' },
+    { name: 'Scanner', path: '/scanner' },
+    { name: 'Bots', path: '/bots' },
+    { name: 'Market Analysis', path: '/analysis' },
+    { name: 'Performance', path: '/performance' },
+    { name: 'Alerts', path: '/alerts' },
+    { name: 'Risk Management', path: '/risk' },
+    { name: 'Portfolio', path: '/portfolio' },
+    { name: 'Trading History', path: '/history' },
+    { name: 'User Profile', path: '/profile' },
+    { name: 'Settings', path: '/settings' },
+  ];
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (searchQuery.trim()) {
+      const foundRoute = searchableRoutes.find(route => 
+        route.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      
+      if (foundRoute) {
+        navigate(foundRoute.path);
+        toast({
+          title: "Page Found",
+          description: `Navigating to ${foundRoute.name}`,
+        });
+        setSearchQuery('');
+      } else {
+        toast({
+          title: "Search Result",
+          description: "No matching pages found",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  // Sample notifications data - in a real app, this would come from the notification system
+  const notifications = notificationManager.getNotifications({ limit: 5 });
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const showNotification = () => {
+    setNotificationsOpen(false);
+    
+    // Create demo notification
+    notificationManager.notify(
+      "New Arbitrage Opportunity", 
+      "BTC price difference detected between Binance and Coinbase: $120",
+      "arbitrage_opportunity",
+      "high",
+      "scanner"
+    );
+
+    toast({
+      title: "Notification System",
+      description: "New notification has been created!",
+    });
+  };
+
   return (
     <header className={cn(
       "h-16 border-b border-slate-700 bg-slate-900 px-4 flex items-center justify-between",
@@ -37,29 +111,82 @@ const Header = ({ sidebarCollapsed }: HeaderProps) => {
     )}>
       {/* Left side */}
       <div className="flex items-center">
-        <div className="relative">
+        <form onSubmit={handleSearch} className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
           <input
             type="text"
-            placeholder="Search..."
+            placeholder="Search pages..."
             className="h-9 w-64 rounded-md border border-slate-700 bg-slate-800 pl-9 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
-        </div>
+        </form>
       </div>
       
       {/* Right side */}
       <div className="flex items-center space-x-4">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="relative text-slate-300"
-          onClick={() => toast({ title: "Notifications", description: "Coming soon!" })}
-        >
-          <Bell className="h-5 w-5" />
-          <Badge className="absolute -top-1 -right-1 h-4 w-4 text-[10px] font-semibold flex items-center justify-center p-0 bg-blue-600">
-            3
-          </Badge>
-        </Button>
+        <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+          <PopoverTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="relative text-slate-300"
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-4 w-4 text-[10px] font-semibold flex items-center justify-center p-0 bg-blue-600">
+                  {unreadCount}
+                </Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0 bg-slate-800 border-slate-700">
+            <div className="p-3 border-b border-slate-700 flex justify-between items-center">
+              <h3 className="font-medium text-white">Notifications</h3>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => notificationManager.markAllAsRead()}
+                className="text-xs text-slate-400 hover:text-white"
+              >
+                Mark all as read
+              </Button>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-slate-500">
+                  No notifications yet
+                </div>
+              ) : (
+                notifications.map((notification) => (
+                  <div 
+                    key={notification.id}
+                    className={`p-3 border-b border-slate-700 hover:bg-slate-700 cursor-pointer ${!notification.isRead ? 'bg-slate-700/40' : ''}`}
+                    onClick={() => notificationManager.markAsRead(notification.id)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <p className="font-medium text-sm text-white">{notification.title}</p>
+                      <span className="text-xs text-slate-500">
+                        {new Date(notification.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">{notification.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-3 border-t border-slate-700 flex justify-between">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs"
+                onClick={() => showNotification()}
+              >
+                Demo Notification
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -79,9 +206,9 @@ const Header = ({ sidebarCollapsed }: HeaderProps) => {
             </Button>
           </DropdownMenuTrigger>
           
-          <DropdownMenuContent className="w-56" align="end">
+          <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700 text-white" align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="bg-slate-700" />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
                 <Link to="/profile" className="cursor-pointer flex items-center">
@@ -108,10 +235,10 @@ const Header = ({ sidebarCollapsed }: HeaderProps) => {
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="bg-slate-700" />
             <DropdownMenuItem 
               className="text-red-500 focus:text-red-500"
-              onClick={() => toast({ title: "Logout", description: "Logging out is not implemented in this demo" })}
+              onClick={() => setAlertDialogOpen(true)}
             >
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
@@ -119,6 +246,32 @@ const Header = ({ sidebarCollapsed }: HeaderProps) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Logout confirmation dialog */}
+      <AlertDialog open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
+        <AlertDialogContent className="bg-slate-800 border-slate-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300">
+              Are you sure you want to log out of your account?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              onClick={() => {
+                toast({ 
+                  title: "Logged Out", 
+                  description: "You have been successfully logged out." 
+                });
+              }}
+            >
+              Log out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 };

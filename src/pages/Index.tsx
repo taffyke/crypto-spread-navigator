@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -9,9 +10,21 @@ import Performance from '@/pages/Performance';
 import { useLocation, Navigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from '@/hooks/use-toast';
+import { notificationManager } from '@/lib/notifications/notificationSystem';
 
 // Component for "Coming Soon" pages
 const ComingSoonPage = ({ pageName }: { pageName: string }) => {
+  // Add a notification when entering a coming soon page
+  useEffect(() => {
+    notificationManager.notify(
+      "Coming Soon Feature",
+      `The ${pageName} feature is still under development. We'll notify you when it's ready!`,
+      "system",
+      "low",
+      "system"
+    );
+  }, [pageName]);
+
   return (
     <div className="flex items-center justify-center h-full w-full p-8">
       <div className="text-center max-w-md">
@@ -61,6 +74,24 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
 const Index = () => {
   const location = useLocation();
+  
+  // Add a welcome notification when app loads
+  useEffect(() => {
+    if (location.pathname === '/' || location.pathname === '/index') {
+      // Slight delay to ensure it appears after app is fully loaded
+      const timer = setTimeout(() => {
+        notificationManager.notify(
+          "Welcome to Crypto Spread Navigator",
+          "Track real-time arbitrage opportunities across exchanges and maximize your trading profits.",
+          "system",
+          "medium",
+          "system"
+        );
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname]);
   
   // Determine which page to show based on the current path
   const renderContent = () => {
