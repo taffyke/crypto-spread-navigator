@@ -671,7 +671,7 @@ export class MarketAnalysisManager {
     // For now, we'll return mock data
     
     const exchangeApi = this.getPrimaryExchangeApi();
-    const ticker = await exchangeApi.fetchTicker(symbol);
+    const ticker = await exchangeApi.getTicker(symbol);
     const currentPrice = ticker.price;
     
     // Generate a mock prediction (±20% from current price)
@@ -1082,4 +1082,4 @@ export class MarketAnalysisManager {
 }
 
 // Export singleton instance
-export const marketAnalysisManager = new MarketAnalysisManager(); 
+export const marketAnalysisManager = new MarketAnalysisManager();
