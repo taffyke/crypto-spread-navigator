@@ -672,7 +672,10 @@ export class MarketAnalysisManager {
     
     const exchangeApi = this.getPrimaryExchangeApi();
     const ticker = await exchangeApi.getTicker(symbol);
-    const currentPrice = ticker.price;
+    
+    // Check if ticker exists and use the "last" property instead of "price"
+    // The Ticker interface has "last" not "price" based on the error
+    const currentPrice = ticker ? ticker.last : this.getMockBasePrice(symbol);
     
     // Generate a mock prediction (±20% from current price)
     const randomChange = (Math.random() * 0.4) - 0.2; // -20% to +20%
