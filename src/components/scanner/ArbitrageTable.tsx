@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
-import { ArrowUpDown, ExternalLink, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, ChevronDown, ChevronUp, RefreshCw, BarChart2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useNavigate } from 'react-router-dom';
 
 export interface ArbitrageOpportunity {
   id: string;
@@ -16,8 +16,7 @@ export interface ArbitrageOpportunity {
   potentialProfit: number;
   timestamp: Date;
   volume24h: number;
-  depositStatus?: string;
-  withdrawalStatus?: string;
+  recommendedNetworks?: string[];
   type?: 'direct' | 'triangular' | 'futures';
 }
 
@@ -44,6 +43,7 @@ const ArbitrageTable = ({
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
   // Format currency amounts
   const formatCurrency = (value: number) => {
@@ -103,6 +103,16 @@ const ArbitrageTable = ({
     }
   };
 
+  // Handle viewing charts
+  const handleViewCharts = (opportunity: ArbitrageOpportunity) => {
+    toast({
+      title: "Opening Charts",
+      description: `Opening ${opportunity.pair} charts for ${opportunity.buyExchange} and ${opportunity.sellExchange}`,
+      variant: "default",
+    });
+    navigate(`/charts/${opportunity.pair}?buy=${opportunity.buyExchange}&sell=${opportunity.sellExchange}`);
+  };
+
   // Sort opportunities
   const sortedOpportunities = [...opportunities].sort((a, b) => {
     const aValue = a[sortKey];
@@ -149,7 +159,7 @@ const ArbitrageTable = ({
     return () => clearInterval(interval);
   }, [onRefresh, refreshing, isLoading]);
 
-  // Render for mobile view with expandable rows
+  // Mobile view with expandable rows
   if (isMobile) {
     return (
       <div className={cn("overflow-x-auto relative", className)}>
@@ -236,28 +246,32 @@ const ArbitrageTable = ({
                               <span className="font-medium">{formatCurrency(opportunity.volume24h)}</span>
                             </div>
                             <div>
-                              <span className="text-slate-400 block">Status:</span>
-                              <span className={cn(
-                                "px-1 py-0.5 rounded text-xs inline-block",
-                                opportunity.depositStatus === "OK" && opportunity.withdrawalStatus === "OK"
-                                  ? "bg-green-900/30 text-green-400"
-                                  : "bg-red-900/30 text-red-400"
-                              )}>
-                                {opportunity.depositStatus === "OK" && opportunity.withdrawalStatus === "OK" 
-                                  ? "Ready" : "Check Status"}
-                              </span>
+                              <span className="text-slate-400 block">Recommended Networks:</span>
+                              <span className="font-medium">{opportunity.recommendedNetworks?.join(', ') || 'TRC20, ERC20'}</span>
                             </div>
                           </div>
-                          <button 
-                            className="w-full p-1 bg-blue-600 hover:bg-blue-500 rounded text-xs flex items-center justify-center gap-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleExecuteTrade(opportunity);
-                            }}
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            Execute Trade
-                          </button>
+                          <div className="grid grid-cols-2 gap-2 mb-2">
+                            <button 
+                              className="p-1 bg-slate-700 hover:bg-slate-600 rounded text-xs flex items-center justify-center gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewCharts(opportunity);
+                              }}
+                            >
+                              <BarChart2 className="h-3 w-3" />
+                              View Charts
+                            </button>
+                            <button 
+                              className="p-1 bg-blue-600 hover:bg-blue-500 rounded text-xs flex items-center justify-center gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExecuteTrade(opportunity);
+                              }}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Execute Trade
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -312,8 +326,7 @@ const ArbitrageTable = ({
             <SortableColumn label="Spread" sortableKey="spreadPercentage" />
             <SortableColumn label="Profit" sortableKey="potentialProfit" />
             <SortableColumn label="24h Volume" sortableKey="volume24h" />
-            <th className="px-4 py-2 text-left">Deposit Status</th>
-            <th className="px-4 py-2 text-left">W/D Status</th>
+            <th className="px-4 py-2 text-left">Recommended Networks</th>
             <th className="px-4 py-2 text-center">Actions</th>
           </tr>
         </thead>
@@ -325,7 +338,15 @@ const ArbitrageTable = ({
                 className="hover:bg-slate-800 transition-colors"
               >
                 <td className="px-4 py-3 text-slate-400">{index + 1}</td>
-                <td className="px-4 py-3 font-medium">{opportunity.pair}</td>
+                <td className="px-4 py-3 font-medium">
+                  <button 
+                    className="text-white hover:text-blue-400 transition-colors font-medium flex items-center"
+                    onClick={() => handleViewCharts(opportunity)}
+                  >
+                    {opportunity.pair}
+                    <BarChart2 className="ml-1.5 h-3.5 w-3.5 opacity-75" />
+                  </button>
+                </td>
                 <td className="px-4 py-3 text-slate-300">{opportunity.buyExchange}</td>
                 <td className="px-4 py-3 text-slate-300">{opportunity.sellExchange}</td>
                 <td className="px-4 py-3">{formatCurrency(opportunity.buyPrice)}</td>
@@ -342,23 +363,8 @@ const ArbitrageTable = ({
                 </td>
                 <td className="px-4 py-3">{formatCurrency(opportunity.volume24h)}</td>
                 <td className="px-4 py-3">
-                  <span className={cn(
-                    "px-2 py-1 rounded text-xs",
-                    opportunity.depositStatus === "OK" 
-                      ? "bg-green-900/30 text-green-400"
-                      : "bg-red-900/30 text-red-400"
-                  )}>
-                    {opportunity.depositStatus || "Unknown"}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={cn(
-                    "px-2 py-1 rounded text-xs",
-                    opportunity.withdrawalStatus === "OK" 
-                      ? "bg-green-900/30 text-green-400"
-                      : "bg-red-900/30 text-red-400"
-                  )}>
-                    {opportunity.withdrawalStatus || "Unknown"}
+                  <span className="px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-400">
+                    {opportunity.recommendedNetworks?.join(', ') || 'TRC20, ERC20'}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -373,7 +379,7 @@ const ArbitrageTable = ({
             ))
           ) : !isLoading ? (
             <tr>
-              <td colSpan={12} className="px-4 py-10 text-center text-slate-400">
+              <td colSpan={11} className="px-4 py-10 text-center text-slate-400">
                 No arbitrage opportunities found
               </td>
             </tr>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Filter, RefreshCw, Download, CornerDownRight, Triangle, Clock } from 'lucide-react';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
@@ -154,12 +153,12 @@ const Scanner = () => {
                 />
               </TabsContent>
             </div>
-            
-            {/* Network Recommendations - Moved from dashboard */}
-            <NetworkRecommendations />
           </div>
           
           <div className="lg:col-span-1 space-y-4">
+            {/* Network Recommendations - Moved to the right side panel */}
+            <NetworkRecommendations />
+            
             <div className={`bg-slate-800 border ${isFiltersOpen ? 'border-blue-500' : 'border-slate-700'} rounded-lg p-3 md:p-4`}>
               <h3 className="text-sm md:text-base text-white font-medium mb-3 md:mb-4">Exchange Selection</h3>
               <ExchangeSelector 

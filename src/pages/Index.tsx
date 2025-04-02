@@ -1,10 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import Dashboard from '@/pages/Dashboard';
 import Scanner from '@/pages/Scanner';
 import Bots from '@/pages/Bots';
+import MarketAnalysis from '@/pages/MarketAnalysis';
+import Performance from '@/pages/Performance';
 import { useLocation, Navigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from '@/hooks/use-toast';
@@ -28,9 +29,9 @@ const ComingSoonPage = ({ pageName }: { pageName: string }) => {
   );
 };
 
-const Index = () => {
+// Create a layout wrapper component
+export const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const location = useLocation();
   const isMobile = useIsMobile();
   
   // Auto-collapse sidebar on mobile
@@ -39,6 +40,27 @@ const Index = () => {
       setSidebarCollapsed(true);
     }
   }, [isMobile]);
+
+  return (
+    <div className="min-h-screen flex bg-slate-900 text-white">
+      <Sidebar 
+        collapsed={sidebarCollapsed} 
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
+      />
+      
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header sidebarCollapsed={sidebarCollapsed} />
+        
+        <main className="flex-1 overflow-y-auto bg-slate-900">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+const Index = () => {
+  const location = useLocation();
   
   // Determine which page to show based on the current path
   const renderContent = () => {
@@ -49,9 +71,9 @@ const Index = () => {
     } else if (path === '/bots') {
       return <Bots />;
     } else if (path === '/analysis') {
-      return <ComingSoonPage pageName="Market Analysis" />;
+      return <MarketAnalysis />;
     } else if (path === '/performance') {
-      return <ComingSoonPage pageName="Performance Analytics" />;
+      return <Performance />;
     } else if (path === '/alerts') {
       return <ComingSoonPage pageName="Alerts Configuration" />;
     } else if (path === '/risk') {
@@ -70,22 +92,7 @@ const Index = () => {
     return <Dashboard />;
   };
   
-  return (
-    <div className="min-h-screen flex bg-slate-900 text-white">
-      <Sidebar 
-        collapsed={sidebarCollapsed} 
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
-      />
-      
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header sidebarCollapsed={sidebarCollapsed} />
-        
-        <main className="flex-1 overflow-y-auto bg-slate-900">
-          {renderContent()}
-        </main>
-      </div>
-    </div>
-  );
+  return <AppLayout>{renderContent()}</AppLayout>;
 };
 
 export default Index;

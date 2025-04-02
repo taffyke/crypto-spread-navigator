@@ -1,208 +1,123 @@
-
-import React, { useState } from 'react';
-import { Bell, Search, Settings, User, ChevronDown, Plus, Bookmark, LogOut } from 'lucide-react';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { 
+  Bell, 
+  Search, 
+  User, 
+  Settings, 
+  History,
+  Wallet,
+  LogOut,
+  ChevronDown
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 
 interface HeaderProps {
-  className?: string;
-  sidebarCollapsed: boolean;
+  sidebarCollapsed?: boolean;
 }
 
-const Header = ({ className, sidebarCollapsed }: HeaderProps) => {
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const searchInput = form.elements.namedItem('search') as HTMLInputElement;
-    toast({
-      title: "Search",
-      description: `Searching for: ${searchInput.value}`,
-      variant: "default",
-    });
-  };
-  
-  const notifications = [
-    { id: 1, title: "New arbitrage opportunity", description: "BTC/USDT spread of 2.5% found", time: "5 min ago", isNew: true },
-    { id: 2, title: "Trading bot alert", description: "Cross-Exchange BTC/ETH bot completed 3 trades", time: "20 min ago", isNew: true },
-    { id: 3, title: "Price alert", description: "ETH price dropped 5% in the last hour", time: "1 hour ago", isNew: false }
-  ];
-  
+const Header = ({ sidebarCollapsed }: HeaderProps) => {
   return (
     <header className={cn(
-      "bg-slate-800 border-b border-slate-700 text-white h-16 flex items-center justify-between px-4",
-      className
+      "h-16 border-b border-slate-700 bg-slate-900 px-4 flex items-center justify-between",
+      sidebarCollapsed ? "ml-0" : "ml-0"
     )}>
-      <div className="flex-1 flex items-center">
-        <form className={cn(
-          "relative w-96 max-w-md",
-          sidebarCollapsed ? "ml-0" : "ml-2"
-        )} onSubmit={handleSearch}>
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+      {/* Left side */}
+      <div className="flex items-center">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
           <input
-            name="search"
             type="text"
-            placeholder="Search coins, exchanges, opportunities..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            placeholder="Search..."
+            className="h-9 w-64 rounded-md border border-slate-700 bg-slate-800 pl-9 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
-        </form>
+        </div>
       </div>
       
-      <div className="flex items-center gap-4">
-        <div className="relative">
-          <button 
-            className="p-2 rounded-md hover:bg-slate-700 relative"
-            onClick={() => {
-              setShowNotifications(!showNotifications);
-              setShowUserMenu(false);
-            }}
-          >
-            <Bell className="h-5 w-5 text-slate-300" />
-            {notifications.some(n => n.isNew) && (
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500"></span>
-            )}
-          </button>
-          
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 overflow-hidden">
-              <div className="p-3 border-b border-slate-700 flex justify-between items-center">
-                <h3 className="font-medium text-white">Notifications</h3>
-                <button 
-                  className="text-xs text-blue-400 hover:text-blue-300"
-                  onClick={() => toast({ title: "Marked all as read" })}
-                >
-                  Mark all as read
-                </button>
-              </div>
-              
-              <div className="max-h-80 overflow-y-auto">
-                {notifications.map(notification => (
-                  <div 
-                    key={notification.id}
-                    className={cn(
-                      "p-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0",
-                      notification.isNew ? "bg-slate-700/50" : ""
-                    )}
-                    onClick={() => toast({
-                      title: notification.title,
-                      description: notification.description
-                    })}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="font-medium text-white flex items-center gap-2">
-                        {notification.title}
-                        {notification.isNew && (
-                          <span className="h-2 w-2 rounded-full bg-blue-500"></span>
-                        )}
-                      </h4>
-                      <span className="text-xs text-slate-400">{notification.time}</span>
-                    </div>
-                    <p className="text-xs text-slate-400">{notification.description}</p>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="p-2 border-t border-slate-700">
-                <button 
-                  className="w-full text-center text-sm text-blue-400 hover:text-blue-300 py-1"
-                  onClick={() => toast({ title: "View all notifications" })}
-                >
-                  View all notifications
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <button 
-          className="p-2 rounded-md hover:bg-slate-700"
-          onClick={() => toast({
-            title: "Settings",
-            description: "Platform settings will be available soon",
-          })}
+      {/* Right side */}
+      <div className="flex items-center space-x-4">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="relative text-slate-300"
+          onClick={() => toast({ title: "Notifications", description: "Coming soon!" })}
         >
-          <Settings className="h-5 w-5 text-slate-300" />
-        </button>
+          <Bell className="h-5 w-5" />
+          <Badge className="absolute -top-1 -right-1 h-4 w-4 text-[10px] font-semibold flex items-center justify-center p-0 bg-blue-600">
+            3
+          </Badge>
+        </Button>
         
-        <div className="relative">
-          <button 
-            className="flex items-center gap-2 p-1 rounded-md hover:bg-slate-700"
-            onClick={() => {
-              setShowUserMenu(!showUserMenu);
-              setShowNotifications(false);
-            }}
-          >
-            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
-              <span className="text-xs font-bold">JD</span>
-            </div>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              className="flex items-center space-x-2 h-9 px-2 text-sm text-white hover:bg-slate-800"
+            >
+              <Avatar className="h-7 w-7">
+                <AvatarImage src="/avatars/user.png" />
+                <AvatarFallback className="bg-blue-700 text-white">AT</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col items-start text-left">
+                <span className="text-xs text-slate-300">Alex Thompson</span>
+                <span className="text-[10px] text-slate-500">Pro Account</span>
+              </div>
+              <ChevronDown className="h-4 w-4 text-slate-500" />
+            </Button>
+          </DropdownMenuTrigger>
           
-          {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-60 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 overflow-hidden">
-              <div className="p-3 border-b border-slate-700">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
-                    <span className="text-sm font-bold">JD</span>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-white">John Doe</h3>
-                    <p className="text-xs text-slate-400">Pro Trader</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="py-1">
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
-                  onClick={() => toast({
-                    title: "My Profile",
-                    description: "User profile will be available soon",
-                  })}
-                >
-                  <User className="h-4 w-4" />
-                  My Profile
-                </button>
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
-                  onClick={() => toast({
-                    title: "API Keys",
-                    description: "API key management will be available soon",
-                  })}
-                >
-                  <Plus className="h-4 w-4" />
-                  API Keys
-                </button>
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
-                  onClick={() => toast({
-                    title: "Saved Strategies",
-                    description: "Your saved strategies will be available soon",
-                  })}
-                >
-                  <Bookmark className="h-4 w-4" />
-                  Saved Strategies
-                </button>
-              </div>
-              
-              <div className="border-t border-slate-700 py-1">
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
-                  onClick={() => toast({
-                    title: "Sign Out",
-                    description: "You have been signed out",
-                    variant: "destructive",
-                  })}
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sign Out
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+          <DropdownMenuContent className="w-56" align="end">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem asChild>
+                <Link to="/profile" className="cursor-pointer flex items-center">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/portfolio" className="cursor-pointer flex items-center">
+                  <Wallet className="mr-2 h-4 w-4" />
+                  <span>Portfolio</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/history" className="cursor-pointer flex items-center">
+                  <History className="mr-2 h-4 w-4" />
+                  <span>History</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/settings" className="cursor-pointer flex items-center">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              className="text-red-500 focus:text-red-500"
+              onClick={() => toast({ title: "Logout", description: "Logging out is not implemented in this demo" })}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

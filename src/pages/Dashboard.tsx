@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TrendingUp, DollarSign, LineChart, BarChart3, History, Bot } from 'lucide-react';
 import ArbitrageOpportunity from '@/components/dashboard/ArbitrageOpportunity';
@@ -8,7 +7,6 @@ import ProfitChart, { ProfitDataPoint } from '@/components/dashboard/ProfitChart
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
 import MarketOverview from '@/components/dashboard/MarketOverview';
 import ExchangeVolume from '@/components/dashboard/ExchangeVolume';
-import NetworkFees from '@/components/dashboard/NetworkFees';
 import { generateArbitrageOpportunities, generateProfitChartData, exchanges } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 
@@ -25,6 +23,34 @@ const Dashboard = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white mb-2">Dashboard</h1>
         <p className="text-slate-400">Monitor your arbitrage opportunities and trading performance</p>
+      </div>
+      
+      {/* Top Arbitrage Opportunities - Moved to the top for better visibility */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-white">Top Arbitrage Opportunities</h2>
+          <Button className="bg-blue-600 hover:bg-blue-500">
+            View All
+          </Button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {topOpportunities.map((opportunity) => (
+            <ArbitrageOpportunity 
+              key={opportunity.id}
+              id={opportunity.id}
+              pair={opportunity.pair}
+              buyExchange={opportunity.buyExchange}
+              sellExchange={opportunity.sellExchange}
+              buyPrice={opportunity.buyPrice}
+              sellPrice={opportunity.sellPrice}
+              spreadPercentage={opportunity.spreadPercentage}
+              potentialProfit={opportunity.potentialProfit}
+              timestamp={opportunity.timestamp}
+              volume24h={opportunity.volume24h}
+            />
+          ))}
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -85,40 +111,12 @@ const Dashboard = () => {
               />
             </div>
           </div>
-          <NetworkFees />
         </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <MarketOverview />
         <ExchangeVolume />
-      </div>
-      
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-white">Top Arbitrage Opportunities</h2>
-          <Button className="bg-blue-600 hover:bg-blue-500">
-            View All
-          </Button>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {topOpportunities.map((opportunity) => (
-            <ArbitrageOpportunity 
-              key={opportunity.id}
-              id={opportunity.id}
-              pair={opportunity.pair}
-              buyExchange={opportunity.buyExchange}
-              sellExchange={opportunity.sellExchange}
-              buyPrice={opportunity.buyPrice}
-              sellPrice={opportunity.sellPrice}
-              spreadPercentage={opportunity.spreadPercentage}
-              potentialProfit={opportunity.potentialProfit}
-              timestamp={opportunity.timestamp}
-              volume24h={opportunity.volume24h}
-            />
-          ))}
-        </div>
       </div>
       
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
@@ -198,7 +196,7 @@ const Dashboard = () => {
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400">Exchanges</span>
-                <span className="text-white">All Selected</span>
+                <span className="text-white">Kraken, Kucoin</span>
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400">Strategy</span>
@@ -206,7 +204,7 @@ const Dashboard = () => {
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400">Today's Profit</span>
-                <span className="text-green-500 font-medium">$359.24</span>
+                <span className="text-green-500 font-medium">$218.45</span>
               </div>
             </div>
             <Button className="w-full bg-slate-600 hover:bg-slate-500">

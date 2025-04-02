@@ -1,0 +1,4 @@
+http.sslverify=false
+user.email=mindfulmelodies28@gmail.com
+user.name=mindfulmel
+credential.helper=store
