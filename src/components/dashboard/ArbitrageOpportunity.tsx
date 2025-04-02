@@ -17,6 +17,8 @@ interface ArbitrageOpportunityProps {
   timestamp: Date;
   volume24h: number;
   className?: string;
+  type?: 'direct' | 'triangular' | 'futures';
+  isLive?: boolean;
 }
 
 const ArbitrageOpportunity = ({
@@ -31,6 +33,8 @@ const ArbitrageOpportunity = ({
   timestamp,
   volume24h,
   className,
+  type = 'direct',
+  isLive = true,
 }: ArbitrageOpportunityProps) => {
   const navigate = useNavigate();
 
@@ -64,16 +68,17 @@ const ArbitrageOpportunity = ({
   const handleViewDetails = () => {
     toast({
       title: "Opportunity Details",
-      description: `Viewing detailed analysis for ${pair} arbitrage between ${buyExchange} and ${sellExchange}`,
+      description: `Viewing detailed analysis for ${pair} ${type} arbitrage between ${buyExchange} and ${sellExchange}`,
       variant: "default",
     });
+    navigate(`/scanner/details/${id}`);
   };
 
   // Handle clicking execute button
   const handleExecuteTrade = () => {
     toast({
       title: "Trade Execution",
-      description: `Preparing to execute ${pair} arbitrage trade with ${formatPercentage(spreadPercentage)} spread`,
+      description: `Preparing to execute ${pair} ${type} arbitrage trade with ${formatPercentage(spreadPercentage)} spread`,
       variant: "default",
     });
   };
@@ -91,8 +96,24 @@ const ArbitrageOpportunity = ({
             spreadPercentage >= 1 ? "text-yellow-500" : "text-slate-400"
           )} />
           <h3 className="font-bold text-white">{pair}</h3>
+          {isLive && (
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+          )}
         </div>
-        <span className="text-xs text-slate-400">{formatTimeDifference(timestamp)}</span>
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "text-xs px-1.5 py-0.5 rounded",
+            type === 'direct' ? "bg-blue-900/30 text-blue-400" :
+            type === 'triangular' ? "bg-purple-900/30 text-purple-400" :
+            "bg-amber-900/30 text-amber-400"
+          )}>
+            {type.charAt(0).toUpperCase() + type.slice(1)}
+          </span>
+          <span className="text-xs text-slate-400">{formatTimeDifference(timestamp)}</span>
+        </div>
       </div>
       
       <div className="grid grid-cols-2 gap-4 mb-3">

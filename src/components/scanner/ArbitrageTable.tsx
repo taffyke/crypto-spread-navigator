@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { ArrowUpDown, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowUpDown, ExternalLink, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -18,20 +18,31 @@ export interface ArbitrageOpportunity {
   volume24h: number;
   depositStatus?: string;
   withdrawalStatus?: string;
+  type?: 'direct' | 'triangular' | 'futures';
 }
 
 interface ArbitrageTableProps {
   opportunities: ArbitrageOpportunity[];
   className?: string;
+  isLoading?: boolean;
+  onRefresh?: () => void;
+  arbitrageType: 'direct' | 'triangular' | 'futures';
 }
 
 type SortKey = 'pair' | 'spreadPercentage' | 'potentialProfit' | 'buyPrice' | 'sellPrice' | 'volume24h';
 type SortDirection = 'asc' | 'desc';
 
-const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
+const ArbitrageTable = ({ 
+  opportunities, 
+  className, 
+  isLoading = false, 
+  onRefresh,
+  arbitrageType 
+}: ArbitrageTableProps) => {
   const [sortKey, setSortKey] = useState<SortKey>('spreadPercentage');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
   const isMobile = useIsMobile();
 
   // Format currency amounts
@@ -74,9 +85,22 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
   const handleExecuteTrade = (opportunity: ArbitrageOpportunity) => {
     toast({
       title: "Execute Trade",
-      description: `Preparing to execute ${opportunity.pair} arbitrage between ${opportunity.buyExchange} and ${opportunity.sellExchange} with ${formatPercentage(opportunity.spreadPercentage)} spread`,
+      description: `Preparing to execute ${opportunity.pair} ${arbitrageType} arbitrage between ${opportunity.buyExchange} and ${opportunity.sellExchange} with ${formatPercentage(opportunity.spreadPercentage)} spread`,
       variant: "default",
     });
+  };
+
+  // Handle refresh
+  const handleRefresh = () => {
+    if (onRefresh) {
+      setRefreshing(true);
+      onRefresh();
+      
+      // Simulate reset of refreshing state after 1 second
+      setTimeout(() => {
+        setRefreshing(false);
+      }, 1000);
+    }
   };
 
   // Sort opportunities
@@ -114,10 +138,41 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
     </th>
   );
 
+  // Auto-refresh logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (onRefresh && !refreshing && !isLoading) {
+        onRefresh();
+      }
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [onRefresh, refreshing, isLoading]);
+
   // Render for mobile view with expandable rows
   if (isMobile) {
     return (
-      <div className={cn("overflow-x-auto", className)}>
+      <div className={cn("overflow-x-auto relative", className)}>
+        {(isLoading || refreshing) && (
+          <div className="absolute inset-0 bg-slate-900/70 flex items-center justify-center z-10">
+            <RefreshCw className="h-8 w-8 text-blue-500 animate-spin" />
+          </div>
+        )}
+        
+        <div className="flex justify-end mb-2">
+          <button 
+            className={cn(
+              "text-xs flex items-center gap-1 px-2 py-1 rounded transition-colors",
+              refreshing ? "bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"
+            )}
+            onClick={handleRefresh}
+            disabled={refreshing || isLoading}
+          >
+            <RefreshCw className={cn("h-3 w-3", refreshing ? "animate-spin" : "")} />
+            Refresh
+          </button>
+        </div>
+        
         <table className="w-full text-xs text-white">
           <thead className="bg-slate-800 border-b border-slate-700">
             <tr>
@@ -129,85 +184,93 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700">
-            {sortedOpportunities.map((opportunity, index) => {
-              const isExpanded = expandedRows.has(opportunity.id);
-              
-              return (
-                <React.Fragment key={opportunity.id}>
-                  <tr 
-                    className="hover:bg-slate-800 transition-colors cursor-pointer"
-                    onClick={() => toggleRowExpansion(opportunity.id)}
-                  >
-                    <td className="px-2 py-3 text-slate-400">{index + 1}</td>
-                    <td className="px-2 py-3 font-medium">{opportunity.pair}</td>
-                    <td className={cn(
-                      "px-2 py-3 font-medium",
-                      opportunity.spreadPercentage >= 3 ? "text-green-500" : 
-                      opportunity.spreadPercentage >= 1 ? "text-yellow-500" : "text-slate-400"
-                    )}>
-                      {formatPercentage(opportunity.spreadPercentage)}
-                    </td>
-                    <td className="px-2 py-3 text-green-500 font-medium">
-                      {formatCurrency(opportunity.potentialProfit)}
-                    </td>
-                    <td className="px-2 py-3 text-center">
-                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </td>
-                  </tr>
-                  
-                  {isExpanded && (
-                    <tr className="bg-slate-900">
-                      <td colSpan={5} className="px-2 py-3">
-                        <div className="grid grid-cols-2 gap-2 text-xs mb-2">
-                          <div>
-                            <span className="text-slate-400 block">Buy at:</span>
-                            <span className="font-medium">{opportunity.buyExchange}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block">Sell at:</span>
-                            <span className="font-medium">{opportunity.sellExchange}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block">Buy Price:</span>
-                            <span className="font-medium">{formatCurrency(opportunity.buyPrice)}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block">Sell Price:</span>
-                            <span className="font-medium">{formatCurrency(opportunity.sellPrice)}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block">24h Volume:</span>
-                            <span className="font-medium">{formatCurrency(opportunity.volume24h)}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block">Status:</span>
-                            <span className={cn(
-                              "px-1 py-0.5 rounded text-xs inline-block",
-                              opportunity.depositStatus === "OK" && opportunity.withdrawalStatus === "OK"
-                                ? "bg-green-900/30 text-green-400"
-                                : "bg-red-900/30 text-red-400"
-                            )}>
-                              {opportunity.depositStatus === "OK" && opportunity.withdrawalStatus === "OK" 
-                                ? "Ready" : "Check Status"}
-                            </span>
-                          </div>
-                        </div>
-                        <button 
-                          className="w-full p-1 bg-blue-600 hover:bg-blue-500 rounded text-xs flex items-center justify-center gap-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleExecuteTrade(opportunity);
-                          }}
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          Execute Trade
-                        </button>
+            {sortedOpportunities.length > 0 ? (
+              sortedOpportunities.map((opportunity, index) => {
+                const isExpanded = expandedRows.has(opportunity.id);
+                
+                return (
+                  <React.Fragment key={opportunity.id}>
+                    <tr 
+                      className="hover:bg-slate-800 transition-colors cursor-pointer"
+                      onClick={() => toggleRowExpansion(opportunity.id)}
+                    >
+                      <td className="px-2 py-3 text-slate-400">{index + 1}</td>
+                      <td className="px-2 py-3 font-medium">{opportunity.pair}</td>
+                      <td className={cn(
+                        "px-2 py-3 font-medium",
+                        opportunity.spreadPercentage >= 3 ? "text-green-500" : 
+                        opportunity.spreadPercentage >= 1 ? "text-yellow-500" : "text-slate-400"
+                      )}>
+                        {formatPercentage(opportunity.spreadPercentage)}
+                      </td>
+                      <td className="px-2 py-3 text-green-500 font-medium">
+                        {formatCurrency(opportunity.potentialProfit)}
+                      </td>
+                      <td className="px-2 py-3 text-center">
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
+                    
+                    {isExpanded && (
+                      <tr className="bg-slate-900">
+                        <td colSpan={5} className="px-2 py-3">
+                          <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                            <div>
+                              <span className="text-slate-400 block">Buy at:</span>
+                              <span className="font-medium">{opportunity.buyExchange}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">Sell at:</span>
+                              <span className="font-medium">{opportunity.sellExchange}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">Buy Price:</span>
+                              <span className="font-medium">{formatCurrency(opportunity.buyPrice)}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">Sell Price:</span>
+                              <span className="font-medium">{formatCurrency(opportunity.sellPrice)}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">24h Volume:</span>
+                              <span className="font-medium">{formatCurrency(opportunity.volume24h)}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">Status:</span>
+                              <span className={cn(
+                                "px-1 py-0.5 rounded text-xs inline-block",
+                                opportunity.depositStatus === "OK" && opportunity.withdrawalStatus === "OK"
+                                  ? "bg-green-900/30 text-green-400"
+                                  : "bg-red-900/30 text-red-400"
+                              )}>
+                                {opportunity.depositStatus === "OK" && opportunity.withdrawalStatus === "OK" 
+                                  ? "Ready" : "Check Status"}
+                              </span>
+                            </div>
+                          </div>
+                          <button 
+                            className="w-full p-1 bg-blue-600 hover:bg-blue-500 rounded text-xs flex items-center justify-center gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExecuteTrade(opportunity);
+                            }}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Execute Trade
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            ) : !isLoading ? (
+              <tr>
+                <td colSpan={5} className="px-2 py-8 text-center text-slate-400">
+                  No arbitrage opportunities found
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
@@ -216,7 +279,27 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
 
   // Desktop view with full table
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    <div className={cn("overflow-x-auto relative", className)}>
+      {(isLoading || refreshing) && (
+        <div className="absolute inset-0 bg-slate-900/70 flex items-center justify-center z-10">
+          <RefreshCw className="h-10 w-10 text-blue-500 animate-spin" />
+        </div>
+      )}
+      
+      <div className="flex justify-end mb-2">
+        <button 
+          className={cn(
+            "text-sm flex items-center gap-1 px-3 py-1.5 rounded transition-colors",
+            refreshing ? "bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"
+          )}
+          onClick={handleRefresh}
+          disabled={refreshing || isLoading}
+        >
+          <RefreshCw className={cn("h-4 w-4", refreshing ? "animate-spin" : "")} />
+          Refresh
+        </button>
+      </div>
+      
       <table className="w-full text-sm text-white">
         <thead className="bg-slate-800 border-b border-slate-700">
           <tr>
@@ -235,58 +318,66 @@ const ArbitrageTable = ({ opportunities, className }: ArbitrageTableProps) => {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-700">
-          {sortedOpportunities.map((opportunity, index) => (
-            <tr 
-              key={opportunity.id}
-              className="hover:bg-slate-800 transition-colors"
-            >
-              <td className="px-4 py-3 text-slate-400">{index + 1}</td>
-              <td className="px-4 py-3 font-medium">{opportunity.pair}</td>
-              <td className="px-4 py-3 text-slate-300">{opportunity.buyExchange}</td>
-              <td className="px-4 py-3 text-slate-300">{opportunity.sellExchange}</td>
-              <td className="px-4 py-3">{formatCurrency(opportunity.buyPrice)}</td>
-              <td className="px-4 py-3">{formatCurrency(opportunity.sellPrice)}</td>
-              <td className={cn(
-                "px-4 py-3 font-medium",
-                opportunity.spreadPercentage >= 3 ? "text-green-500" : 
-                opportunity.spreadPercentage >= 1 ? "text-yellow-500" : "text-slate-400"
-              )}>
-                {formatPercentage(opportunity.spreadPercentage)}
-              </td>
-              <td className="px-4 py-3 text-green-500 font-medium">
-                {formatCurrency(opportunity.potentialProfit)}
-              </td>
-              <td className="px-4 py-3">{formatCurrency(opportunity.volume24h)}</td>
-              <td className="px-4 py-3">
-                <span className={cn(
-                  "px-2 py-1 rounded text-xs",
-                  opportunity.depositStatus === "OK" 
-                    ? "bg-green-900/30 text-green-400"
-                    : "bg-red-900/30 text-red-400"
+          {sortedOpportunities.length > 0 ? (
+            sortedOpportunities.map((opportunity, index) => (
+              <tr 
+                key={opportunity.id}
+                className="hover:bg-slate-800 transition-colors"
+              >
+                <td className="px-4 py-3 text-slate-400">{index + 1}</td>
+                <td className="px-4 py-3 font-medium">{opportunity.pair}</td>
+                <td className="px-4 py-3 text-slate-300">{opportunity.buyExchange}</td>
+                <td className="px-4 py-3 text-slate-300">{opportunity.sellExchange}</td>
+                <td className="px-4 py-3">{formatCurrency(opportunity.buyPrice)}</td>
+                <td className="px-4 py-3">{formatCurrency(opportunity.sellPrice)}</td>
+                <td className={cn(
+                  "px-4 py-3 font-medium",
+                  opportunity.spreadPercentage >= 3 ? "text-green-500" : 
+                  opportunity.spreadPercentage >= 1 ? "text-yellow-500" : "text-slate-400"
                 )}>
-                  {opportunity.depositStatus || "Unknown"}
-                </span>
-              </td>
-              <td className="px-4 py-3">
-                <span className={cn(
-                  "px-2 py-1 rounded text-xs",
-                  opportunity.withdrawalStatus === "OK" 
-                    ? "bg-green-900/30 text-green-400"
-                    : "bg-red-900/30 text-red-400"
-                )}>
-                  {opportunity.withdrawalStatus || "Unknown"}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-center">
-                <button 
-                  className="p-1 bg-blue-600 hover:bg-blue-500 rounded inline-flex items-center justify-center"
-                  onClick={() => handleExecuteTrade(opportunity)}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </button>
+                  {formatPercentage(opportunity.spreadPercentage)}
+                </td>
+                <td className="px-4 py-3 text-green-500 font-medium">
+                  {formatCurrency(opportunity.potentialProfit)}
+                </td>
+                <td className="px-4 py-3">{formatCurrency(opportunity.volume24h)}</td>
+                <td className="px-4 py-3">
+                  <span className={cn(
+                    "px-2 py-1 rounded text-xs",
+                    opportunity.depositStatus === "OK" 
+                      ? "bg-green-900/30 text-green-400"
+                      : "bg-red-900/30 text-red-400"
+                  )}>
+                    {opportunity.depositStatus || "Unknown"}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={cn(
+                    "px-2 py-1 rounded text-xs",
+                    opportunity.withdrawalStatus === "OK" 
+                      ? "bg-green-900/30 text-green-400"
+                      : "bg-red-900/30 text-red-400"
+                  )}>
+                    {opportunity.withdrawalStatus || "Unknown"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <button 
+                    className="p-1 bg-blue-600 hover:bg-blue-500 rounded inline-flex items-center justify-center"
+                    onClick={() => handleExecuteTrade(opportunity)}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))
+          ) : !isLoading ? (
+            <tr>
+              <td colSpan={12} className="px-4 py-10 text-center text-slate-400">
+                No arbitrage opportunities found
               </td>
             </tr>
-          ))}
+          ) : null}
         </tbody>
       </table>
     </div>

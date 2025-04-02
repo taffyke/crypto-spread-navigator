@@ -1,45 +1,62 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, Filter, RefreshCw, Download, CornerDownRight, Triangle, Clock } from 'lucide-react';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
 import ArbitrageTable from '@/components/scanner/ArbitrageTable';
-import { generateArbitrageOpportunities, exchanges } from '@/data/mockData';
+import NetworkRecommendations from '@/components/scanner/NetworkRecommendations';
+import { exchanges } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useArbitrageData } from '@/hooks/use-arbitrage-data';
+import { toast } from '@/hooks/use-toast';
 
 const Scanner = () => {
   const [selectedExchanges, setSelectedExchanges] = useState<string[]>(['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io']);
   const [minSpread, setMinSpread] = useState<number>(1.0);
   const [minVolume, setMinVolume] = useState<number>(100000);
   const [arbitrageType, setArbitrageType] = useState<'direct' | 'triangular' | 'futures'>('direct');
-  const [opportunities] = useState(generateArbitrageOpportunities(30));
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [includeFeesChecked, setIncludeFeesChecked] = useState(true);
+  const [checkLiquidityChecked, setCheckLiquidityChecked] = useState(true);
+  const [checkDepositsChecked, setCheckDepositsChecked] = useState(true);
+  const [showCompletedChecked, setShowCompletedChecked] = useState(false);
   
-  // Filter opportunities based on selected criteria
-  const filteredOpportunities = opportunities.filter(opp => 
-    opp.spreadPercentage >= minSpread && 
-    opp.volume24h >= minVolume
+  // Use our custom hook to fetch arbitrage data
+  const { 
+    data: opportunities, 
+    isLoading, 
+    refresh,
+    lastUpdated
+  } = useArbitrageData(
+    arbitrageType,
+    selectedExchanges,
+    minSpread,
+    minVolume,
+    true // Auto-refresh
   );
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 1000);
-  };
-
   const handleExport = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filteredOpportunities));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(opportunities));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `arbitrage-opportunities-${new Date().toISOString()}.json`);
+    downloadAnchorNode.setAttribute("download", `${arbitrageType}-arbitrage-opportunities-${new Date().toISOString()}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+    
+    toast({
+      title: "Export Successful",
+      description: `Exported ${opportunities.length} ${arbitrageType} arbitrage opportunities`,
+    });
   };
 
   const handleApplyFilters = () => {
-    // In a real app, this would trigger a new data fetch with the selected filters
-    // For now, we'll just re-filter the existing opportunities
+    refresh();
+    setIsFiltersOpen(false);
+    
+    toast({
+      title: "Filters Applied",
+      description: `Applied filters with ${minSpread.toFixed(1)}% minimum spread and $${(minVolume/1000).toFixed(0)}K minimum volume`,
+    });
   };
   
   return (
@@ -68,69 +85,82 @@ const Scanner = () => {
         </TabsList>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
-          <div className="lg:col-span-3 bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4 mb-4 md:mb-6">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-blue-400" />
-                <h2 className="text-lg font-medium text-white">
-                  {arbitrageType === 'direct' ? 'Direct' : 
-                   arbitrageType === 'triangular' ? 'Triangular' : 'Futures'} Opportunities
-                </h2>
+          <div className="lg:col-span-3 space-y-4 md:space-y-6">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4 mb-4 md:mb-6">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-400" />
+                  <h2 className="text-lg font-medium text-white">
+                    {arbitrageType === 'direct' ? 'Direct' : 
+                    arbitrageType === 'triangular' ? 'Triangular' : 'Futures'} Opportunities
+                  </h2>
+                  {!isLoading && (
+                    <span className="text-xs text-slate-400">
+                      Last updated: {new Date(lastUpdated).toLocaleTimeString()}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  <button 
+                    className="bg-blue-600 hover:bg-blue-500 px-3 md:px-4 py-1.5 md:py-2 rounded text-white text-xs md:text-sm flex items-center gap-2 transition-colors"
+                    onClick={refresh}
+                    disabled={isLoading}
+                  >
+                    <RefreshCw className={`h-3 md:h-4 w-3 md:w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                  <button 
+                    className="bg-slate-700 hover:bg-slate-600 px-3 md:px-4 py-1.5 md:py-2 rounded text-white text-xs md:text-sm flex items-center gap-2 transition-colors"
+                    onClick={handleExport}
+                  >
+                    <Download className="h-3 md:h-4 w-3 md:w-4" />
+                    Export
+                  </button>
+                  <button 
+                    className="bg-slate-700 hover:bg-slate-600 px-3 md:px-4 py-1.5 md:py-2 rounded text-white text-xs md:text-sm flex items-center gap-2 transition-colors"
+                    onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                  >
+                    <Filter className="h-3 md:h-4 w-3 md:w-4" />
+                    Filters
+                  </button>
+                </div>
               </div>
               
-              <div className="flex flex-wrap gap-2">
-                <button 
-                  className={`${isRefreshing ? 'bg-blue-700' : 'bg-blue-600 hover:bg-blue-500'} px-3 md:px-4 py-1.5 md:py-2 rounded text-white text-xs md:text-sm flex items-center gap-2 transition-colors`}
-                  onClick={handleRefresh}
-                >
-                  <RefreshCw className={`h-3 md:h-4 w-3 md:w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  Refresh
-                </button>
-                <button 
-                  className="bg-slate-700 hover:bg-slate-600 px-3 md:px-4 py-1.5 md:py-2 rounded text-white text-xs md:text-sm flex items-center gap-2 transition-colors"
-                  onClick={handleExport}
-                >
-                  <Download className="h-3 md:h-4 w-3 md:w-4" />
-                  Export
-                </button>
-                <button className="bg-slate-700 hover:bg-slate-600 px-3 md:px-4 py-1.5 md:py-2 rounded text-white text-xs md:text-sm flex items-center gap-2 transition-colors">
-                  <Filter className="h-3 md:h-4 w-3 md:w-4" />
-                  Filters
-                </button>
-              </div>
+              <TabsContent value="direct" className="mt-0">
+                <ArbitrageTable 
+                  opportunities={opportunities} 
+                  isLoading={isLoading}
+                  onRefresh={refresh}
+                  arbitrageType="direct"
+                />
+              </TabsContent>
+              
+              <TabsContent value="triangular" className="mt-0">
+                <ArbitrageTable 
+                  opportunities={opportunities}
+                  isLoading={isLoading}
+                  onRefresh={refresh}
+                  arbitrageType="triangular"
+                />
+              </TabsContent>
+              
+              <TabsContent value="futures" className="mt-0">
+                <ArbitrageTable 
+                  opportunities={opportunities} 
+                  isLoading={isLoading}
+                  onRefresh={refresh}
+                  arbitrageType="futures"
+                />
+              </TabsContent>
             </div>
             
-            <TabsContent value="direct" className="mt-0">
-              <ArbitrageTable opportunities={filteredOpportunities} />
-            </TabsContent>
-            
-            <TabsContent value="triangular" className="mt-0">
-              <ArbitrageTable 
-                opportunities={filteredOpportunities.map(opp => ({
-                  ...opp,
-                  pair: `${opp.pair.split('/')[0]}/ETH/BTC`, // Simulate triangular paths
-                  spreadPercentage: opp.spreadPercentage * 0.8, // Slightly different spreads for demo
-                  potentialProfit: opp.potentialProfit * 0.9
-                }))} 
-              />
-            </TabsContent>
-            
-            <TabsContent value="futures" className="mt-0">
-              <ArbitrageTable 
-                opportunities={filteredOpportunities.map(opp => ({
-                  ...opp,
-                  pair: `${opp.pair} (Futures)`, // Add futures suffix
-                  buyExchange: opp.buyExchange + " Spot",
-                  sellExchange: opp.sellExchange + " Futures",
-                  spreadPercentage: opp.spreadPercentage * 1.2, // Slightly higher spreads for futures
-                  potentialProfit: opp.potentialProfit * 1.1
-                }))} 
-              />
-            </TabsContent>
+            {/* Network Recommendations - Moved from dashboard */}
+            <NetworkRecommendations />
           </div>
           
           <div className="lg:col-span-1 space-y-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4">
+            <div className={`bg-slate-800 border ${isFiltersOpen ? 'border-blue-500' : 'border-slate-700'} rounded-lg p-3 md:p-4`}>
               <h3 className="text-sm md:text-base text-white font-medium mb-3 md:mb-4">Exchange Selection</h3>
               <ExchangeSelector 
                 exchanges={exchanges}
@@ -154,7 +184,7 @@ const Scanner = () => {
                       step="0.1" 
                       value={minSpread}
                       onChange={(e) => setMinSpread(parseFloat(e.target.value))}
-                      className="w-full"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                   
@@ -170,7 +200,7 @@ const Scanner = () => {
                       step="10000" 
                       value={minVolume}
                       onChange={(e) => setMinVolume(parseFloat(e.target.value))}
-                      className="w-full"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                 </div>
@@ -183,8 +213,9 @@ const Scanner = () => {
                   <input 
                     type="checkbox" 
                     id="includeFees" 
-                    defaultChecked={true}
-                    className="h-4 w-4 rounded border-slate-700"
+                    checked={includeFeesChecked}
+                    onChange={(e) => setIncludeFeesChecked(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-700 accent-blue-500"
                   />
                   <label htmlFor="includeFees" className="text-xs md:text-sm text-slate-300">
                     Include exchange fees
@@ -195,8 +226,9 @@ const Scanner = () => {
                   <input 
                     type="checkbox" 
                     id="checkLiquidity" 
-                    defaultChecked={true}
-                    className="h-4 w-4 rounded border-slate-700"
+                    checked={checkLiquidityChecked}
+                    onChange={(e) => setCheckLiquidityChecked(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-700 accent-blue-500"
                   />
                   <label htmlFor="checkLiquidity" className="text-xs md:text-sm text-slate-300">
                     Check liquidity depth
@@ -207,8 +239,9 @@ const Scanner = () => {
                   <input 
                     type="checkbox" 
                     id="checkDeposits" 
-                    defaultChecked={true}
-                    className="h-4 w-4 rounded border-slate-700"
+                    checked={checkDepositsChecked}
+                    onChange={(e) => setCheckDepositsChecked(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-700 accent-blue-500"
                   />
                   <label htmlFor="checkDeposits" className="text-xs md:text-sm text-slate-300">
                     Check deposit/withdrawal status
@@ -219,8 +252,9 @@ const Scanner = () => {
                   <input 
                     type="checkbox" 
                     id="showCompleted" 
-                    defaultChecked={false}
-                    className="h-4 w-4 rounded border-slate-700"
+                    checked={showCompletedChecked}
+                    onChange={(e) => setShowCompletedChecked(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-700 accent-blue-500"
                   />
                   <label htmlFor="showCompleted" className="text-xs md:text-sm text-slate-300">
                     Show completed arbitrages
@@ -244,20 +278,20 @@ const Scanner = () => {
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-xs md:text-sm">
                   <span className="text-slate-400">Total Opportunities</span>
-                  <span className="text-white">{filteredOpportunities.length}</span>
+                  <span className="text-white">{opportunities.length}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs md:text-sm">
                   <span className="text-slate-400">Average Spread</span>
                   <span className="text-white">
-                    {(filteredOpportunities.reduce((acc, opp) => acc + opp.spreadPercentage, 0) / 
-                      (filteredOpportunities.length || 1)).toFixed(2)}%
+                    {(opportunities.reduce((acc, opp) => acc + opp.spreadPercentage, 0) / 
+                      (opportunities.length || 1)).toFixed(2)}%
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-xs md:text-sm">
                   <span className="text-slate-400">Highest Spread</span>
                   <span className="text-green-500 font-medium">
-                    {filteredOpportunities.length > 0 
-                      ? Math.max(...filteredOpportunities.map(opp => opp.spreadPercentage)).toFixed(2) 
+                    {opportunities.length > 0 
+                      ? Math.max(...opportunities.map(opp => opp.spreadPercentage)).toFixed(2) 
                       : 0}%
                   </span>
                 </div>
@@ -267,7 +301,7 @@ const Scanner = () => {
                 </div>
                 <div className="flex justify-between items-center text-xs md:text-sm">
                   <span className="text-slate-400">Last Updated</span>
-                  <span className="text-white">Just now</span>
+                  <span className="text-white">{new Date(lastUpdated).toLocaleTimeString()}</span>
                 </div>
               </div>
             </div>
