@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
 import { cn } from '@/lib/utils';
 import { useTickerWebSocket } from '@/hooks/use-websocket';
 import { toast } from '@/hooks/use-toast';
+import { Ticker } from '@/lib/exchanges/exchangeApi';
 
 export interface ProfitDataPoint {
   date: string;
@@ -39,7 +41,8 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
   const [chartData, setChartData] = useState<ProfitDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const { data: tickerData, isConnected, error } = useTickerWebSocket('binance', symbol, true);
+  // Properly type the tickerData as Ticker or null
+  const { data: tickerData, isConnected, error } = useTickerWebSocket<Ticker>('binance', symbol, true);
   
   useEffect(() => {
     if (initialData && initialData.length > 0) {
@@ -82,9 +85,11 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
   }, [initialData, symbol]);
   
   useEffect(() => {
-    if (tickerData && chartData.length > 0) {
+    // Add type guard to ensure tickerData is Ticker type and has changePercent
+    if (tickerData && 'changePercent' in tickerData && chartData.length > 0) {
       const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       
+      // Now TypeScript knows tickerData has changePercent property
       const newProfit = tickerData.changePercent * 10;
       
       setChartData(prevData => {
