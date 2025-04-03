@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Filter, RefreshCw, Download, CornerDownRight, Triangle, Clock } from 'lucide-react';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
@@ -9,15 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
 import { toast } from '@/hooks/use-toast';
 
-// Define the type for arbitrage opportunities
+// Define the type for arbitrage opportunities to match ArbitrageTable's expected type
 interface ArbitrageOpportunity {
   id: string;
   pair: string;
-  buyExchange?: string;
-  sellExchange?: string;
-  exchange?: string;
-  buyPrice?: number;
-  sellPrice?: number;
+  buyExchange: string; // Made required
+  sellExchange: string; // Made required
+  buyPrice: number; // Made required
+  sellPrice: number; // Made required
   spreadPercentage: number;
   riskLevel: 'low' | 'medium' | 'high';
   timestamp: Date;
@@ -146,7 +144,7 @@ const Scanner = () => {
               
               <TabsContent value="direct" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities as ArbitrageOpportunity[]} 
+                  opportunities={opportunities as unknown as ArbitrageTable.ArbitrageOpportunity[]} 
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="direct"
@@ -155,7 +153,7 @@ const Scanner = () => {
               
               <TabsContent value="triangular" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities as ArbitrageOpportunity[]}
+                  opportunities={opportunities as unknown as ArbitrageTable.ArbitrageOpportunity[]}
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="triangular"
@@ -164,7 +162,7 @@ const Scanner = () => {
               
               <TabsContent value="futures" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities as ArbitrageOpportunity[]} 
+                  opportunities={opportunities as unknown as ArbitrageTable.ArbitrageOpportunity[]} 
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="futures"

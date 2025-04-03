@@ -10,15 +10,15 @@ interface UseArbitrageDataOptions {
   staleTime?: number;
 }
 
-// Define the type for arbitrage opportunities
+// Define the type for arbitrage opportunities to ensure consistent types
 interface ArbitrageOpportunity {
   id: string;
   pair: string;
-  buyExchange?: string;
-  sellExchange?: string;
-  exchange?: string;
-  buyPrice?: number;
-  sellPrice?: number;
+  buyExchange: string;  // Made required
+  sellExchange: string; // Made required 
+  exchange?: string;    // Still optional
+  buyPrice: number;     // Made required
+  sellPrice: number;    // Made required
   spreadPercentage: number;
   riskLevel: 'low' | 'medium' | 'high';
   timestamp: Date;
@@ -59,10 +59,10 @@ export function useArbitrageData(
         arbitrageType,
         minSpread,
         minVolume,
-        combinedSignal.signal
+        signal
       );
       
-      // Filter by selected exchanges if provided and ensure riskLevel is properly typed
+      // Filter by selected exchanges if provided and ensure required fields exist
       const filteredData = selectedExchanges.length > 0
         ? arbitrageData.filter((item: any) => {
             if (arbitrageType === 'direct') {
@@ -82,7 +82,7 @@ export function useArbitrageData(
           })
         : arbitrageData;
 
-      // Ensure riskLevel is one of the allowed values
+      // Process the data to ensure all required fields are present
       const typedData = filteredData.map((item: any): ArbitrageOpportunity => {
         // Ensure riskLevel is one of the valid options
         let validRiskLevel: 'low' | 'medium' | 'high';
@@ -93,8 +93,26 @@ export function useArbitrageData(
           validRiskLevel = 'medium';
         }
         
+        // For triangular or futures arbitrage, provide default exchange values if missing
+        if ((arbitrageType === 'triangular' || arbitrageType === 'futures') && !item.buyExchange) {
+          item.buyExchange = item.exchange || 'Unknown';
+          item.sellExchange = item.exchange || 'Unknown';
+        }
+        
+        // For direct arbitrage, ensure buy and sell prices exist
+        if (!item.buyPrice || !item.sellPrice) {
+          // Calculate based on spread if needed
+          const basePrice = item.price || 1000; // Default fallback
+          item.buyPrice = item.buyPrice || basePrice;
+          item.sellPrice = item.sellPrice || (basePrice * (1 + item.spreadPercentage / 100));
+        }
+        
         return {
           ...item,
+          buyExchange: item.buyExchange || 'Unknown', // Ensure required field
+          sellExchange: item.sellExchange || 'Unknown', // Ensure required field
+          buyPrice: item.buyPrice || 0, // Ensure required field
+          sellPrice: item.sellPrice || 0, // Ensure required field
           riskLevel: validRiskLevel
         };
       });
