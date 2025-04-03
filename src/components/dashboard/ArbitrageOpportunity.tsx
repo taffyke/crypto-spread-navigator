@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ExternalLink, TrendingUp } from 'lucide-react';
+import { ExternalLink, TrendingUp, AlertTriangle, BarChart2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -13,12 +13,13 @@ interface ArbitrageOpportunityProps {
   buyPrice: number;
   sellPrice: number;
   spreadPercentage: number;
-  potentialProfit: number;
+  riskLevel: 'low' | 'medium' | 'high';
   timestamp: Date;
   volume24h: number;
   className?: string;
   type?: 'direct' | 'triangular' | 'futures';
   isLive?: boolean;
+  recommendedNetworks?: string[];
 }
 
 const ArbitrageOpportunity = ({
@@ -29,12 +30,13 @@ const ArbitrageOpportunity = ({
   buyPrice,
   sellPrice,
   spreadPercentage,
-  potentialProfit,
+  riskLevel,
   timestamp,
   volume24h,
   className,
   type = 'direct',
   isLive = true,
+  recommendedNetworks = [],
 }: ArbitrageOpportunityProps) => {
   const navigate = useNavigate();
 
@@ -72,6 +74,16 @@ const ArbitrageOpportunity = ({
       variant: "default",
     });
     navigate(`/scanner/details/${id}`);
+  };
+
+  // Handle clicking view charts button
+  const handleViewCharts = () => {
+    toast({
+      title: "Opening Charts",
+      description: `Opening ${pair} price charts for ${buyExchange} and ${sellExchange}`,
+      variant: "default",
+    });
+    navigate(`/charts/${pair}?buy=${buyExchange}&sell=${sellExchange}`);
   };
 
   // Handle clicking execute button
@@ -139,8 +151,14 @@ const ArbitrageOpportunity = ({
           </p>
         </div>
         <div>
-          <p className="text-xs text-slate-400">Potential Profit</p>
-          <p className="text-sm font-bold text-green-500">{formatCurrency(potentialProfit)}</p>
+          <p className="text-xs text-slate-400">Risk Level</p>
+          <p className={cn(
+            "text-sm font-bold",
+            riskLevel === 'low' ? "text-green-500" : 
+            riskLevel === 'medium' ? "text-yellow-500" : "text-red-500"
+          )}>
+            {riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)}
+          </p>
         </div>
         <div>
           <p className="text-xs text-slate-400">24h Volume</p>
@@ -148,7 +166,27 @@ const ArbitrageOpportunity = ({
         </div>
       </div>
       
+      {recommendedNetworks && recommendedNetworks.length > 0 && (
+        <div className="mt-2 mb-3">
+          <p className="text-xs text-slate-400 mb-1">Recommended Networks:</p>
+          <div className="flex flex-wrap gap-1">
+            {recommendedNetworks.map((network, index) => (
+              <span key={index} className="text-xs bg-blue-900/30 text-blue-400 px-1.5 py-0.5 rounded">
+                {network}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      
       <div className="flex justify-end gap-2 mt-3">
+        <button 
+          className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-white transition-colors flex items-center gap-1"
+          onClick={handleViewCharts}
+        >
+          <BarChart2 className="h-3 w-3" />
+          Charts
+        </button>
         <button 
           className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-white transition-colors"
           onClick={handleViewDetails}

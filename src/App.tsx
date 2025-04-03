@@ -38,6 +38,7 @@ import Portfolio from '@/pages/Portfolio';
 import Alerts from '@/pages/Alerts';
 import MarketAnalysis from '@/pages/MarketAnalysis';
 import Sidebar from '@/components/layout/Sidebar';
+import Charts from '@/pages/Charts';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -204,6 +205,8 @@ function App() {
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/contact" element={<ContactUs />} />
+              
+              <Route path="/charts/:pair" element={<Charts />} />
               
               <Route path="*" element={<NotFound />} />
             </Route>

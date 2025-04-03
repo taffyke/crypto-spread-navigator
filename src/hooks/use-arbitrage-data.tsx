@@ -1,11 +1,13 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from './use-toast';
 import { fetchArbitrageOpportunities } from '@/lib/api/cryptoDataApi';
+import { useQuery } from '@tanstack/react-query';
 
 interface UseArbitrageDataOptions {
   autoRefresh?: boolean;
   refreshInterval?: number;
+  staleTime?: number;
 }
 
 export function useArbitrageData(
@@ -16,21 +18,26 @@ export function useArbitrageData(
   autoRefresh: boolean = false,
   options: UseArbitrageDataOptions = {}
 ) {
-  const [data, setData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
+  const lastFetchRef = useRef<number>(Date.now());
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+    // Cancel any previous requests to avoid race conditions
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create a new abort controller for this request
+    abortControllerRef.current = new AbortController();
     
     try {
-      // Fetch real arbitrage opportunities from our API
+      // Fetch real arbitrage opportunities from our API with the abort signal
       const arbitrageData = await fetchArbitrageOpportunities(
         arbitrageType,
         minSpread,
-        minVolume
+        minVolume,
+        abortControllerRef.current.signal
       );
       
       // Filter by selected exchanges if provided
@@ -38,66 +45,64 @@ export function useArbitrageData(
         ? arbitrageData.filter((item: any) => {
             if (arbitrageType === 'direct') {
               return selectedExchanges.some(ex => 
-                item.buyExchange.toLowerCase().includes(ex) || 
-                item.sellExchange.toLowerCase().includes(ex)
+                item.buyExchange.toLowerCase().includes(ex.toLowerCase()) || 
+                item.sellExchange.toLowerCase().includes(ex.toLowerCase())
               );
             } else if (arbitrageType === 'triangular') {
               return selectedExchanges.some(ex => 
-                item.exchange.toLowerCase().includes(ex)
+                item.exchange.toLowerCase().includes(ex.toLowerCase())
               );
             } else {
               return selectedExchanges.some(ex => 
-                item.exchange.toLowerCase().includes(ex)
+                item.exchange.toLowerCase().includes(ex.toLowerCase())
               );
             }
           })
         : arbitrageData;
 
-      setData(filteredData);
+      lastFetchRef.current = Date.now();
       setLastUpdated(Date.now());
+      return filteredData;
     } catch (err) {
-      console.error('Error fetching arbitrage data:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch arbitrage data'));
-      
-      toast({
-        title: 'Data Fetch Error',
-        description: 'Unable to fetch arbitrage opportunities. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
+      // Only log and show error if it's not an abort error
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error('Error fetching arbitrage data:', err);
+        
+        toast({
+          title: 'Data Fetch Error',
+          description: 'Unable to fetch arbitrage opportunities. Please try again.',
+          variant: 'destructive',
+        });
+      }
+      throw err;
     }
   }, [arbitrageType, selectedExchanges, minSpread, minVolume]);
   
+  // Use React Query for automatic caching, retries, and background updates
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['arbitrageData', arbitrageType, selectedExchanges, minSpread, minVolume],
+    queryFn: fetchData,
+    staleTime: options.staleTime || 10000, // Default 10 seconds
+    refetchInterval: autoRefresh || options.autoRefresh ? (options.refreshInterval || 15000) : false, // Default 15 seconds
+    refetchOnWindowFocus: true,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+  });
+  
+  // Clean up abort controller on unmount
   useEffect(() => {
-    fetchData();
-    
-    const refreshInterval = options.refreshInterval || 60000; // Default 1 minute
-    
-    // Setup auto refresh
-    let intervalId: number;
-    if (autoRefresh || options.autoRefresh) {
-      intervalId = window.setInterval(() => {
-        fetchData();
-      }, refreshInterval);
-    }
-    
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
-  }, [fetchData, autoRefresh, options.autoRefresh, options.refreshInterval]);
-  
-  const refresh = useCallback(() => {
-    fetchData();
-  }, [fetchData]);
+  }, []);
   
   return {
-    data,
+    data: data || [],
     isLoading,
     error,
-    refresh,
+    refresh: refetch,
     lastUpdated
   };
 }

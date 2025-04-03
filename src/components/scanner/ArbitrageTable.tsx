@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { ArrowUpDown, ExternalLink, ChevronDown, ChevronUp, RefreshCw, BarChart2 } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, ChevronDown, ChevronUp, RefreshCw, BarChart2, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -13,7 +14,7 @@ export interface ArbitrageOpportunity {
   buyPrice: number;
   sellPrice: number;
   spreadPercentage: number;
-  potentialProfit: number;
+  riskLevel: 'low' | 'medium' | 'high';
   timestamp: Date;
   volume24h: number;
   recommendedNetworks?: string[];
@@ -28,7 +29,7 @@ interface ArbitrageTableProps {
   arbitrageType: 'direct' | 'triangular' | 'futures';
 }
 
-type SortKey = 'pair' | 'spreadPercentage' | 'potentialProfit' | 'buyPrice' | 'sellPrice' | 'volume24h';
+type SortKey = 'pair' | 'spreadPercentage' | 'riskLevel' | 'buyPrice' | 'sellPrice' | 'volume24h';
 type SortDirection = 'asc' | 'desc';
 
 const ArbitrageTable = ({ 
@@ -90,19 +91,6 @@ const ArbitrageTable = ({
     });
   };
 
-  // Handle refresh
-  const handleRefresh = () => {
-    if (onRefresh) {
-      setRefreshing(true);
-      onRefresh();
-      
-      // Simulate reset of refreshing state after 1 second
-      setTimeout(() => {
-        setRefreshing(false);
-      }, 1000);
-    }
-  };
-
   // Handle viewing charts
   const handleViewCharts = (opportunity: ArbitrageOpportunity) => {
     toast({
@@ -113,8 +101,28 @@ const ArbitrageTable = ({
     navigate(`/charts/${opportunity.pair}?buy=${opportunity.buyExchange}&sell=${opportunity.sellExchange}`);
   };
 
+  // Handle refresh
+  const handleRefresh = () => {
+    if (onRefresh) {
+      setRefreshing(true);
+      onRefresh();
+      
+      // Reset refreshing state after a short delay
+      setTimeout(() => {
+        setRefreshing(false);
+      }, 1000);
+    }
+  };
+
   // Sort opportunities
   const sortedOpportunities = [...opportunities].sort((a, b) => {
+    if (sortKey === 'riskLevel') {
+      const riskOrder = { 'low': 1, 'medium': 2, 'high': 3 };
+      const aValue = riskOrder[a.riskLevel as keyof typeof riskOrder];
+      const bValue = riskOrder[b.riskLevel as keyof typeof riskOrder];
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+    }
+    
     const aValue = a[sortKey];
     const bValue = b[sortKey];
     
@@ -148,17 +156,6 @@ const ArbitrageTable = ({
     </th>
   );
 
-  // Auto-refresh logic
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (onRefresh && !refreshing && !isLoading) {
-        onRefresh();
-      }
-    }, 30000); // Refresh every 30 seconds
-    
-    return () => clearInterval(interval);
-  }, [onRefresh, refreshing, isLoading]);
-
   // Mobile view with expandable rows
   if (isMobile) {
     return (
@@ -189,7 +186,7 @@ const ArbitrageTable = ({
               <th className="w-8 px-2 py-2">#</th>
               <SortableColumn label="Pair" sortableKey="pair" />
               <SortableColumn label="Spread" sortableKey="spreadPercentage" />
-              <SortableColumn label="Profit" sortableKey="potentialProfit" />
+              <SortableColumn label="Risk" sortableKey="riskLevel" />
               <th className="w-8 px-2 py-2"></th>
             </tr>
           </thead>
@@ -213,8 +210,12 @@ const ArbitrageTable = ({
                       )}>
                         {formatPercentage(opportunity.spreadPercentage)}
                       </td>
-                      <td className="px-2 py-3 text-green-500 font-medium">
-                        {formatCurrency(opportunity.potentialProfit)}
+                      <td className={cn(
+                        "px-2 py-3 font-medium",
+                        opportunity.riskLevel === 'low' ? "text-green-500" : 
+                        opportunity.riskLevel === 'medium' ? "text-yellow-500" : "text-red-500"
+                      )}>
+                        {opportunity.riskLevel.charAt(0).toUpperCase()}
                       </td>
                       <td className="px-2 py-3 text-center">
                         {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -247,7 +248,7 @@ const ArbitrageTable = ({
                             </div>
                             <div>
                               <span className="text-slate-400 block">Recommended Networks:</span>
-                              <span className="font-medium">{opportunity.recommendedNetworks?.join(', ') || 'TRC20, ERC20'}</span>
+                              <span className="font-medium">{opportunity.recommendedNetworks?.join(', ') || 'Loading...'}</span>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2 mb-2">
@@ -324,7 +325,7 @@ const ArbitrageTable = ({
             <SortableColumn label="Buy Price" sortableKey="buyPrice" />
             <SortableColumn label="Sell Price" sortableKey="sellPrice" />
             <SortableColumn label="Spread" sortableKey="spreadPercentage" />
-            <SortableColumn label="Profit" sortableKey="potentialProfit" />
+            <SortableColumn label="Risk Level" sortableKey="riskLevel" />
             <SortableColumn label="24h Volume" sortableKey="volume24h" />
             <th className="px-4 py-2 text-left">Recommended Networks</th>
             <th className="px-4 py-2 text-center">Actions</th>
@@ -358,22 +359,40 @@ const ArbitrageTable = ({
                 )}>
                   {formatPercentage(opportunity.spreadPercentage)}
                 </td>
-                <td className="px-4 py-3 text-green-500 font-medium">
-                  {formatCurrency(opportunity.potentialProfit)}
+                <td className={cn(
+                  "px-4 py-3 font-medium",
+                  opportunity.riskLevel === 'low' ? "text-green-500" : 
+                  opportunity.riskLevel === 'medium' ? "text-yellow-500" : "text-red-500"
+                )}>
+                  {opportunity.riskLevel.charAt(0).toUpperCase() + opportunity.riskLevel.slice(1)}
                 </td>
                 <td className="px-4 py-3">{formatCurrency(opportunity.volume24h)}</td>
                 <td className="px-4 py-3">
-                  <span className="px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-400">
-                    {opportunity.recommendedNetworks?.join(', ') || 'TRC20, ERC20'}
-                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {opportunity.recommendedNetworks ? opportunity.recommendedNetworks.map((network, i) => (
+                      <span key={i} className="px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-400">
+                        {network}
+                      </span>
+                    )) : <span className="text-slate-400">Loading...</span>}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <button 
-                    className="p-1 bg-blue-600 hover:bg-blue-500 rounded inline-flex items-center justify-center"
-                    onClick={() => handleExecuteTrade(opportunity)}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center justify-center gap-2">
+                    <button 
+                      className="p-1 bg-slate-700 hover:bg-slate-600 rounded inline-flex items-center justify-center"
+                      onClick={() => handleViewCharts(opportunity)}
+                      title="View Charts"
+                    >
+                      <BarChart2 className="h-4 w-4" />
+                    </button>
+                    <button 
+                      className="p-1 bg-blue-600 hover:bg-blue-500 rounded inline-flex items-center justify-center"
+                      onClick={() => handleExecuteTrade(opportunity)}
+                      title="Execute Trade"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))

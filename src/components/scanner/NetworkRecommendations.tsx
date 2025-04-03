@@ -1,56 +1,38 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { fetchNetworkFeeData } from '@/lib/api/cryptoDataApi';
 import { toast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 
 const NetworkRecommendations = () => {
-  const [feeData, setFeeData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  
-  useEffect(() => {
-    fetchFeeData();
-    
-    // Set up refresh interval - fees change frequently
-    const interval = setInterval(() => {
-      fetchFeeData(true);
-    }, 180000); // Every 3 minutes
-    
-    return () => clearInterval(interval);
-  }, []);
-  
-  const fetchFeeData = async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    if (silent) setRefreshing(true);
-    
-    try {
-      const data = await fetchNetworkFeeData();
-      setFeeData(data);
-    } catch (error) {
-      console.error("Failed to fetch network fee data:", error);
-      if (!silent) {
-        toast({
-          title: "Data Loading Error",
-          description: "Unable to load network fee data.",
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setIsLoading(false);
-      setRefreshing(false);
-    }
-  };
+  // Use React Query for efficient data fetching with caching and automatic refetching
+  const { 
+    data: feeData = [], 
+    isLoading,
+    refetch, 
+    isFetching 
+  } = useQuery({
+    queryKey: ['networkFeeData'],
+    queryFn: fetchNetworkFeeData,
+    refetchInterval: 60000, // Refresh every 1 minute
+    staleTime: 30000, // Consider data stale after 30 seconds
+    retry: 3,
+    refetchOnWindowFocus: true,
+  });
   
   const handleRefresh = () => {
-    fetchFeeData(true);
+    refetch();
     toast({
       title: "Refreshing Fee Data",
       description: "Fetching latest network fee information."
     });
   };
+  
+  // Sort networks by fee (lowest first) to recommend the cheapest
+  const sortedFeeData = [...feeData].sort((a, b) => a.fee - b.fee);
   
   return (
     <Card className="bg-slate-800 border-slate-700 text-white">
@@ -59,10 +41,10 @@ const NetworkRecommendations = () => {
           <CardTitle className="text-sm md:text-base">Network Recommendations</CardTitle>
           <button 
             onClick={handleRefresh}
-            disabled={refreshing}
+            disabled={isFetching}
             className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </CardHeader>
@@ -88,28 +70,36 @@ const NetworkRecommendations = () => {
                     </td>
                   </tr>
                 ))
-              ) : feeData.length > 0 ? (
-                feeData.map((item, index) => (
+              ) : sortedFeeData.length > 0 ? (
+                sortedFeeData.map((item, index) => (
                   <tr 
                     key={`${item.token}-${item.network}-${index}`} 
-                    className="border-b border-slate-700/70 hover:bg-slate-700/30 transition-colors"
+                    className={cn(
+                      "border-b border-slate-700/70 hover:bg-slate-700/30 transition-colors",
+                      index < 3 ? "bg-slate-700/20" : "" // Highlight the three cheapest networks
+                    )}
                   >
                     <td className="py-2 px-3 md:px-4">
                       <div className="font-medium text-white">{item.token}</div>
                     </td>
                     <td className="py-2 px-3 md:px-4 text-slate-300">
                       {item.network}
+                      {index < 3 && (
+                        <span className="ml-1 text-green-400 text-[10px]">
+                          {index === 0 ? "Best" : index === 1 ? "Good" : "Recommended"}
+                        </span>
+                      )}
                     </td>
                     <td className="py-2 px-3 md:px-4 text-right text-slate-300">
                       ${item.fee.toFixed(2)}
                     </td>
                     <td className="py-2 px-3 md:px-4 text-right">
                       <Badge 
-                        className={`
-                          ${item.congestion === 'low' ? 'bg-green-600' : 
-                            item.congestion === 'medium' ? 'bg-amber-600' : 'bg-red-600'}
-                          hover:bg-opacity-90 text-white text-[10px] md:text-xs
-                        `}
+                        className={cn(
+                          "hover:bg-opacity-90 text-white text-[10px] md:text-xs",
+                          item.congestion === 'low' ? "bg-green-600" : 
+                          item.congestion === 'medium' ? "bg-amber-600" : "bg-red-600"
+                        )}
                       >
                         {item.congestion.charAt(0).toUpperCase() + item.congestion.slice(1)}
                       </Badge>

@@ -25,25 +25,131 @@ export interface ExchangeVolumeData {
   trust_score: number;
 }
 
+export interface NetworkFeeData {
+  token: string;
+  network: string;
+  fee: number;
+  transactionTime: string;
+  congestion: 'low' | 'medium' | 'high';
+}
+
+export interface ArbitrageOpportunity {
+  id: string;
+  pair: string;
+  buyExchange: string;
+  sellExchange: string;
+  buyPrice: number;
+  sellPrice: number;
+  spreadPercentage: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  timestamp: Date;
+  volume24h: number;
+  depositStatus?: string;
+  withdrawalStatus?: string;
+  recommendedNetworks?: string[];
+}
+
 // Default list of cryptos to fetch if not specified
 const DEFAULT_CRYPTOS = 'bitcoin,ethereum,tether,binancecoin,ripple,solana,cardano,dogecoin,tron,polkadot,polygon,litecoin,chainlink,bitcoin-cash,stellar,avalanche-2';
 
 /**
+ * Correctly calculate the spread percentage between two prices
+ * This fixes the previous calculation errors
+ */
+function calculateSpreadPercentage(buyPrice: number, sellPrice: number): number {
+  // Correct spread formula: (sellPrice - buyPrice) / buyPrice * 100
+  // This represents the percentage gain you can make by buying at buyPrice and selling at sellPrice
+  if (buyPrice <= 0) return 0;
+  return ((sellPrice - buyPrice) / buyPrice) * 100;
+}
+
+/**
+ * Calculate risk level based on spread, volume, and other factors
+ */
+function calculateRiskLevel(
+  spreadPercentage: number, 
+  volume24h: number, 
+  depositStatus?: string, 
+  withdrawalStatus?: string
+): 'low' | 'medium' | 'high' {
+  // Very high spreads with good volume are usually too good to be true (high risk)
+  if (spreadPercentage > 5) {
+    return volume24h > 1000000 ? 'medium' : 'high';
+  }
+  
+  // Good spreads with great volume are low risk
+  if (spreadPercentage >= 1.5 && volume24h > 1000000) {
+    return 'low';
+  }
+  
+  // Good spreads with decent volume are medium risk
+  if (spreadPercentage >= 1 && volume24h > 250000) {
+    return 'medium';
+  }
+  
+  // Consider deposit/withdrawal status for additional risk assessment
+  if (depositStatus === 'Slow' || withdrawalStatus === 'Delayed') {
+    return 'high';
+  }
+  
+  // Default risk assessment
+  if (spreadPercentage < 1) {
+    return 'high'; // Low spread, likely not worth the risk
+  } else if (volume24h < 100000) {
+    return 'high'; // Low volume, liquidity risk
+  }
+  
+  return 'medium';
+}
+
+/**
+ * Determine the best network for transferring assets based on fee data
+ */
+function recommendNetworks(token: string): Promise<string[]> {
+  // Get the latest network fee data
+  return fetchNetworkFeeData()
+    .then(feeData => {
+      // Filter by token and sort by fee (lowest first)
+      const relevantNetworks = feeData
+        .filter(net => net.token === token || (token.includes('USDT') && net.token === 'USDT'))
+        .sort((a, b) => {
+          // Sort by fee first
+          if (a.fee !== b.fee) return a.fee - b.fee;
+          
+          // If fees are the same, prefer networks with less congestion
+          const congestionValue = { 'low': 1, 'medium': 2, 'high': 3 };
+          return congestionValue[a.congestion] - congestionValue[b.congestion];
+        })
+        .slice(0, 2) // Take top 2 networks
+        .map(net => net.network);
+        
+      return relevantNetworks.length > 0 ? relevantNetworks : ['TRC20', 'BEP20']; // Default fallback
+    })
+    .catch(() => {
+      // Fallback to generally cheap networks if we can't fetch data
+      return ['TRC20', 'BEP20'];
+    });
+}
+
+/**
  * Fetches real-time cryptocurrency market data from CoinGecko
  */
-export async function fetchCryptoMarketData(count: number = 14): Promise<CryptoMarketData[]> {
+export async function fetchCryptoMarketData(count: number = 14, signal?: AbortSignal): Promise<CryptoMarketData[]> {
   const cacheKey = `crypto_market_data_${count}`;
   const cachedData = apiCache.get(cacheKey);
   
-  if (cachedData) {
+  if (cachedData && !signal?.aborted) {
     return cachedData;
   }
 
   try {
     const response = await fetch(
-      `${COINGECKO_API_BASE}/coins/markets?vs_currency=usd&ids=${DEFAULT_CRYPTOS}&order=market_cap_desc&per_page=${count}&page=1&sparkline=false&price_change_percentage=24h`
+      `${COINGECKO_API_BASE}/coins/markets?vs_currency=usd&ids=${DEFAULT_CRYPTOS}&order=market_cap_desc&per_page=${count}&page=1&sparkline=false&price_change_percentage=24h`,
+      { signal }
     );
 
+    if (signal?.aborted) throw new Error('Request aborted');
+    
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
@@ -63,10 +169,14 @@ export async function fetchCryptoMarketData(count: number = 14): Promise<CryptoM
     }));
     
     // Cache the data
-    apiCache.set(cacheKey, marketData);
+    apiCache.set(cacheKey, marketData, 60 * 1000); // Cache for 1 minute
     
     return marketData;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error; // Rethrow abort errors
+    }
+    
     console.error('Failed to fetch cryptocurrency market data:', error);
     toast({
       title: 'Data Retrieval Error',
@@ -81,18 +191,21 @@ export async function fetchCryptoMarketData(count: number = 14): Promise<CryptoM
 /**
  * Fetches exchange volume data from CoinGecko
  */
-export async function fetchExchangeVolumeData(count: number = 10): Promise<ExchangeVolumeData[]> {
+export async function fetchExchangeVolumeData(count: number = 10, signal?: AbortSignal): Promise<ExchangeVolumeData[]> {
   const cacheKey = `exchange_volume_data_${count}`;
   const cachedData = apiCache.get(cacheKey);
   
-  if (cachedData) {
+  if (cachedData && !signal?.aborted) {
     return cachedData;
   }
 
   try {
     const response = await fetch(
-      `${COINGECKO_API_BASE}/exchanges?per_page=${count}&page=1`
+      `${COINGECKO_API_BASE}/exchanges?per_page=${count}&page=1`,
+      { signal }
     );
+    
+    if (signal?.aborted) throw new Error('Request aborted');
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
@@ -110,11 +223,15 @@ export async function fetchExchangeVolumeData(count: number = 10): Promise<Excha
       trust_score: item.trust_score
     }));
     
-    // Cache the data
-    apiCache.set(cacheKey, volumeData);
+    // Cache the data, but for a shorter time since volume data changes frequently
+    apiCache.set(cacheKey, volumeData, 60 * 1000); // Cache for 1 minute
     
     return volumeData;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error; // Rethrow abort errors
+    }
+    
     console.error('Failed to fetch exchange volume data:', error);
     toast({
       title: 'Data Retrieval Error',
@@ -127,19 +244,21 @@ export async function fetchExchangeVolumeData(count: number = 10): Promise<Excha
 }
 
 /**
- * Fetches network fee data from multiple sources
+ * Fetches network fee data from multiple sources in real-time
  */
-export async function fetchNetworkFeeData(): Promise<any[]> {
+export async function fetchNetworkFeeData(signal?: AbortSignal): Promise<NetworkFeeData[]> {
   const cacheKey = 'network_fee_data';
   const cachedData = apiCache.get(cacheKey);
   
-  if (cachedData) {
+  if (cachedData && !signal?.aborted) {
     return cachedData;
   }
 
   try {
-    // For Bitcoin fees
-    const btcResponse = await fetch('https://mempool.space/api/v1/fees/recommended');
+    // For Bitcoin fees from mempool.space
+    const btcResponse = await fetch('https://mempool.space/api/v1/fees/recommended', { signal });
+    
+    if (signal?.aborted) throw new Error('Request aborted');
     
     if (!btcResponse.ok) {
       throw new Error(`BTC fee API error: ${btcResponse.status}`);
@@ -147,14 +266,39 @@ export async function fetchNetworkFeeData(): Promise<any[]> {
     
     const btcFees = await btcResponse.json();
     
-    // Create network fee data
-    const feeData = [
+    // Use Ethereum gas prices API 
+    const ethResponse = await fetch('https://api.etherscan.io/api?module=gastracker&action=gasoracle', { signal });
+    
+    if (signal?.aborted) throw new Error('Request aborted');
+    
+    let ethGasPrice = 100; // Default if API fails
+    
+    if (ethResponse.ok) {
+      const ethData = await ethResponse.json();
+      if (ethData.status === '1' && ethData.result) {
+        ethGasPrice = parseInt(ethData.result.ProposeGasPrice) || 100;
+      }
+    }
+    
+    // Calculate fees based on real gas prices
+    const ethFee = (ethGasPrice * 0.025).toFixed(2); // Simple ETH transfer
+    const erc20Fee = (ethGasPrice * 0.06).toFixed(2); // ERC20 token transfer
+    
+    // Create network fee data sorted by actual fee costs
+    const feeData: NetworkFeeData[] = [
       {
-        token: 'BTC',
-        network: 'Bitcoin',
-        fee: btcFees.fastestFee / 100, // Convert from sat/vB to USD
-        transactionTime: '10-60 minutes',
-        congestion: btcFees.fastestFee > 100 ? 'high' : btcFees.fastestFee > 50 ? 'medium' : 'low'
+        token: 'USDT',
+        network: 'Tron (TRC20)',
+        fee: 1,
+        transactionTime: '< 1 minute',
+        congestion: 'low'
+      },
+      {
+        token: 'USDT',
+        network: 'BNB Chain (BEP20)',
+        fee: 0.5,
+        transactionTime: '< 1 minute',
+        congestion: 'low'
       },
       {
         token: 'BTC',
@@ -165,39 +309,46 @@ export async function fetchNetworkFeeData(): Promise<any[]> {
       },
       {
         token: 'ETH',
-        network: 'Ethereum',
-        fee: 2.5,
-        transactionTime: '15 seconds - 5 minutes',
-        congestion: 'medium'
-      },
-      {
-        token: 'ETH',
         network: 'Arbitrum',
         fee: 0.25,
         transactionTime: '< 1 minute',
         congestion: 'low'
       },
       {
-        token: 'USDT',
-        network: 'Tron (TRC20)',
-        fee: 1,
-        transactionTime: '< 1 minute',
-        congestion: 'low'
+        token: 'BTC',
+        network: 'Bitcoin',
+        fee: btcFees.fastestFee / 100, // Convert from sat/vB to USD
+        transactionTime: '10-60 minutes',
+        congestion: btcFees.fastestFee > 100 ? 'high' : btcFees.fastestFee > 50 ? 'medium' : 'low'
+      },
+      {
+        token: 'ETH',
+        network: 'Ethereum',
+        fee: parseFloat(ethFee),
+        transactionTime: '15 seconds - 5 minutes',
+        congestion: ethGasPrice > 100 ? 'high' : ethGasPrice > 50 ? 'medium' : 'low'
       },
       {
         token: 'USDT',
         network: 'Ethereum (ERC20)',
-        fee: 5,
+        fee: parseFloat(erc20Fee),
         transactionTime: '15 seconds - 5 minutes',
-        congestion: 'medium'
+        congestion: ethGasPrice > 100 ? 'high' : ethGasPrice > 50 ? 'medium' : 'low'
       }
     ];
     
-    // Cache the data
-    apiCache.set(cacheKey, feeData);
+    // Sort by fee (lowest first) for better recommendations
+    const sortedFeeData = feeData.sort((a, b) => a.fee - b.fee);
     
-    return feeData;
+    // Cache the data for a short time because network fees change frequently
+    apiCache.set(cacheKey, sortedFeeData, 180000); // Cache for 3 minutes
+    
+    return sortedFeeData;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error; // Rethrow abort errors
+    }
+    
     console.error('Failed to fetch network fee data:', error);
     toast({
       title: 'Data Retrieval Error',
@@ -215,12 +366,13 @@ export async function fetchNetworkFeeData(): Promise<any[]> {
 export async function fetchArbitrageOpportunities(
   arbitrageType: 'direct' | 'triangular' | 'futures',
   minSpread: number = 1.0,
-  minVolume: number = 100000
-): Promise<any[]> {
+  minVolume: number = 100000,
+  signal?: AbortSignal
+): Promise<ArbitrageOpportunity[]> {
   const cacheKey = `arbitrage_opportunities_${arbitrageType}_${minSpread}_${minVolume}`;
   const cachedData = apiCache.get(cacheKey);
   
-  if (cachedData) {
+  if (cachedData && !signal?.aborted) {
     return cachedData;
   }
 
@@ -228,8 +380,11 @@ export async function fetchArbitrageOpportunities(
     // For demo purposes, we're creating semi-real data based on actual market conditions
     // In a real implementation, you would compare actual prices from different exchanges
     const response = await fetch(
-      `${COINGECKO_API_BASE}/coins/markets?vs_currency=usd&ids=${DEFAULT_CRYPTOS}&order=market_cap_desc&per_page=10&page=1&sparkline=false`
+      `${COINGECKO_API_BASE}/coins/markets?vs_currency=usd&ids=${DEFAULT_CRYPTOS}&order=market_cap_desc&per_page=10&page=1&sparkline=false`,
+      { signal }
     );
+
+    if (signal?.aborted) throw new Error('Request aborted');
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
@@ -239,8 +394,11 @@ export async function fetchArbitrageOpportunities(
     
     // Get exchange list 
     const exchangeResponse = await fetch(
-      `${COINGECKO_API_BASE}/exchanges?per_page=15&page=1`
+      `${COINGECKO_API_BASE}/exchanges?per_page=15&page=1`,
+      { signal }
     );
+    
+    if (signal?.aborted) throw new Error('Request aborted');
     
     if (!exchangeResponse.ok) {
       throw new Error(`Exchange API error: ${exchangeResponse.status}`);
@@ -250,6 +408,7 @@ export async function fetchArbitrageOpportunities(
     
     // Generate opportunities based on real market data
     const opportunities = [];
+    const pendingNetworkRecommendations = [];
     
     for (let i = 0; i < cryptoData.length; i++) {
       const crypto = cryptoData[i];
@@ -266,22 +425,35 @@ export async function fetchArbitrageOpportunities(
             sellExchangeIndex = Math.floor(Math.random() * exchangeData.length);
           } while (sellExchangeIndex === buyExchangeIndex);
           
-          // Create a realistic spread (0.1% to 2.5%)
-          const spreadPercentage = Math.random() * 2.4 + 0.1;
+          // Base price with minor adjustments to reflect real-world price differences
+          const basePrice = crypto.current_price;
+          
+          // Create more realistic buy/sell prices with proper spread calculation
+          const priceDelta = basePrice * (Math.random() * 0.03 + 0.001); // 0.1% to 3.1% delta
+          const buyPrice = basePrice - (priceDelta / 2);
+          const sellPrice = basePrice + (priceDelta / 2);
+          
+          // Calculate spread percentage correctly
+          const spreadPercentage = calculateSpreadPercentage(buyPrice, sellPrice);
           
           // Only include if it meets the minimum spread
           if (spreadPercentage >= minSpread) {
-            const basePrice = crypto.current_price;
-            const buyPrice = basePrice * (1 - spreadPercentage / 200);
-            const sellPrice = basePrice * (1 + spreadPercentage / 200);
+            // Generate realistic deposit/withdrawal statuses
+            const depositStatus = Math.random() > 0.7 ? "OK" : "Slow";
+            const withdrawalStatus = Math.random() > 0.7 ? "OK" : "Delayed";
             
-            // Calculate potential profit
-            const tradeAmount = 1000; // Assuming $1000 trade
-            const potentialProfit = tradeAmount * (spreadPercentage / 100);
+            // Calculate risk level
+            const riskLevel = calculateRiskLevel(
+              spreadPercentage, 
+              crypto.total_volume, 
+              depositStatus, 
+              withdrawalStatus
+            );
             
             // Only include if volume is sufficient
             if (crypto.total_volume >= minVolume) {
-              opportunities.push({
+              // Create the opportunity object
+              const opportunity = {
                 id: `arb-${crypto.id}-${j}`,
                 pair: `${crypto.symbol.toUpperCase()}/USDT`,
                 buyExchange: exchangeData[buyExchangeIndex].name,
@@ -289,12 +461,24 @@ export async function fetchArbitrageOpportunities(
                 buyPrice,
                 sellPrice,
                 spreadPercentage,
-                potentialProfit,
+                riskLevel,
                 timestamp: new Date(),
                 volume24h: crypto.total_volume,
-                depositStatus: Math.random() > 0.3 ? "OK" : "Slow",
-                withdrawalStatus: Math.random() > 0.3 ? "OK" : "Delayed",
-              });
+                depositStatus,
+                withdrawalStatus,
+                recommendedNetworks: ['Processing...']
+              };
+              
+              opportunities.push(opportunity);
+              
+              // Get recommended networks for this token asynchronously
+              pendingNetworkRecommendations.push(
+                recommendNetworks(crypto.symbol.toUpperCase())
+                  .then(networks => {
+                    opportunity.recommendedNetworks = networks;
+                    return opportunity;
+                  })
+              );
             }
           }
         }
@@ -302,44 +486,101 @@ export async function fetchArbitrageOpportunities(
         // Create triangular arbitrage opportunities
         if (Math.random() > 0.7) { // Not all cryptos have triangular opportunities
           const exchange = exchangeData[Math.floor(Math.random() * exchangeData.length)];
-          const spreadPercentage = Math.random() * 1.5 + 0.1; // Lower spreads for triangular
+          
+          // More realistic triangular spreads (typically smaller than direct)
+          const spreadPercentage = Math.random() * 1.5 + 0.1; // 0.1% to 1.6% spread
           
           if (spreadPercentage >= minSpread && crypto.total_volume >= minVolume) {
-            opportunities.push({
+            const depositStatus = Math.random() > 0.8 ? "OK" : "Slow";
+            const withdrawalStatus = Math.random() > 0.8 ? "OK" : "Delayed";
+            
+            const riskLevel = calculateRiskLevel(
+              spreadPercentage, 
+              crypto.total_volume * 0.8, 
+              depositStatus, 
+              withdrawalStatus
+            );
+            
+            const opportunity = {
               id: `tri-${crypto.id}`,
+              pair: `${crypto.symbol.toUpperCase()}/USDT/BTC`,
               exchange: exchange.name,
-              pairs: `USDT → ${crypto.symbol.toUpperCase()} → BTC → USDT`,
+              buyExchange: exchange.name,
+              sellExchange: exchange.name + " (via BTC)",
+              buyPrice: crypto.current_price,
+              sellPrice: crypto.current_price * (1 + spreadPercentage/100),
               spreadPercentage,
-              potentialProfit: 1000 * (spreadPercentage / 100),
+              riskLevel,
               timestamp: new Date(),
               volume24h: crypto.total_volume * 0.8, // Slightly less volume for these paths
-              executionSpeed: Math.random() > 0.5 ? "Fast" : "Average",
-              risk: spreadPercentage > 1 ? "Low" : "Medium",
-            });
+              depositStatus,
+              withdrawalStatus,
+              recommendedNetworks: ['Processing...']
+            };
+            
+            opportunities.push(opportunity);
+            
+            // Get recommended networks for this token asynchronously
+            pendingNetworkRecommendations.push(
+              recommendNetworks(crypto.symbol.toUpperCase())
+                .then(networks => {
+                  opportunity.recommendedNetworks = networks;
+                  return opportunity;
+                })
+            );
           }
         }
       } else if (arbitrageType === 'futures') {
         // Create futures arbitrage opportunities
-        if (Math.random() > 0.6 && crypto.symbol !== 'usdt') { // Not all cryptos have futures opportunities
+        if (Math.random() > 0.6 && crypto.symbol !== 'usdt') {
           const exchange = exchangeData[Math.floor(Math.random() * exchangeData.length)];
-          const spreadPercentage = Math.random() * 3 + 0.2; // Higher spreads for futures
+          
+          // Futures typically have wider spreads relative to funding rates
+          const spreadPercentage = Math.random() * 3 + 0.2; // 0.2% to 3.2% spread
           
           if (spreadPercentage >= minSpread && crypto.total_volume >= minVolume) {
             const fundingRate = (Math.random() * 0.1 - 0.05).toFixed(4); // Between -0.05% and 0.05%
+            const depositStatus = Math.random() > 0.8 ? "OK" : "Slow";
+            const withdrawalStatus = Math.random() > 0.8 ? "OK" : "Delayed";
             
-            opportunities.push({
+            // Typically higher risk due to liquidation possibilities
+            const baseRiskLevel = calculateRiskLevel(
+              spreadPercentage, 
+              crypto.total_volume * 1.2,
+              depositStatus, 
+              withdrawalStatus
+            );
+            
+            // Adjust risk based on funding rate
+            const adjustedRiskLevel = 
+              parseFloat(fundingRate) > 0.03 ? 'high' : 
+              parseFloat(fundingRate) < -0.03 ? 'high' : baseRiskLevel;
+            
+            const opportunity = {
               id: `fut-${crypto.id}`,
-              pair: `${crypto.symbol.toUpperCase()}/USDT`,
-              exchange: exchange.name,
-              spotPrice: crypto.current_price,
-              futuresPrice: crypto.current_price * (1 + spreadPercentage / 100),
+              pair: `${crypto.symbol.toUpperCase()}/USDT-PERP`,
+              buyExchange: exchange.name + " (spot)",
+              sellExchange: exchange.name + " (futures)",
+              buyPrice: crypto.current_price,
+              sellPrice: crypto.current_price * (1 + spreadPercentage/100),
               spreadPercentage,
-              fundingRate: `${fundingRate}%`,
-              potentialProfit: 1000 * (spreadPercentage / 100),
+              riskLevel: adjustedRiskLevel as 'low' | 'medium' | 'high',
               timestamp: new Date(),
               volume24h: crypto.total_volume * 1.2, // Futures often have more volume
-              liquidityScore: Math.random() > 0.5 ? "High" : "Medium",
-            });
+              fundingRate: `${fundingRate}%`,
+              recommendedNetworks: ['Processing...']
+            };
+            
+            opportunities.push(opportunity);
+            
+            // Get recommended networks for this token asynchronously
+            pendingNetworkRecommendations.push(
+              recommendNetworks(crypto.symbol.toUpperCase())
+                .then(networks => {
+                  opportunity.recommendedNetworks = networks;
+                  return opportunity;
+                })
+            );
           }
         }
       }
@@ -349,10 +590,19 @@ export async function fetchArbitrageOpportunities(
     const sortedOpportunities = opportunities.sort((a: any, b: any) => b.spreadPercentage - a.spreadPercentage);
     
     // Cache the data
-    apiCache.set(cacheKey, sortedOpportunities);
+    apiCache.set(cacheKey, sortedOpportunities, 15000); // Cache for 15 seconds
+    
+    // Process all network recommendations in parallel
+    Promise.all(pendingNetworkRecommendations).catch(err => {
+      console.log('Error fetching network recommendations:', err);
+    });
     
     return sortedOpportunities;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error; // Rethrow abort errors
+    }
+    
     console.error(`Failed to fetch ${arbitrageType} arbitrage opportunities:`, error);
     toast({
       title: 'Data Retrieval Error',
@@ -368,7 +618,9 @@ export async function fetchArbitrageOpportunities(
 export function calculateProfitData(tickerData: any, days: number = 30): any[] {
   const data = [];
   let cumulativeProfit = 0;
-  const changePercent = tickerData?.changePercent ? Number(tickerData.changePercent) : 0.5;
+  const changePercent = tickerData && typeof tickerData === 'object' && 'changePercent' in tickerData
+    ? Number(tickerData.changePercent) || 0.5
+    : 0.5;
   
   // Generate realistic profit changes based on actual price movements
   for (let i = 0; i < days; i++) {
