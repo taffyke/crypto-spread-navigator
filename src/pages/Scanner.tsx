@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Filter, RefreshCw, Download, CornerDownRight, Triangle, Clock } from 'lucide-react';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
@@ -20,7 +19,6 @@ const Scanner = () => {
   const [checkDepositsChecked, setCheckDepositsChecked] = useState(true);
   const [showCompletedChecked, setShowCompletedChecked] = useState(false);
   
-  // Use our custom hook to fetch real arbitrage data
   const { 
     data: opportunities, 
     isLoading, 
@@ -105,7 +103,7 @@ const Scanner = () => {
                 <div className="flex flex-wrap gap-2">
                   <button 
                     className="bg-blue-600 hover:bg-blue-500 px-3 md:px-4 py-1.5 md:py-2 rounded text-white text-xs md:text-sm flex items-center gap-2 transition-colors"
-                    onClick={refresh}
+                    onClick={() => refresh()}
                     disabled={isLoading}
                   >
                     <RefreshCw className={`h-3 md:h-4 w-3 md:w-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -158,7 +156,6 @@ const Scanner = () => {
           </div>
           
           <div className="lg:col-span-1 space-y-4">
-            {/* Network Recommendations - Moved to the right side panel */}
             <NetworkRecommendations />
             
             <div className={`bg-slate-800 border ${isFiltersOpen ? 'border-blue-500' : 'border-slate-700'} rounded-lg p-3 md:p-4`}>

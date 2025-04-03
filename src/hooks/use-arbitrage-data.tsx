@@ -22,7 +22,7 @@ export function useArbitrageData(
   const lastFetchRef = useRef<number>(Date.now());
   const abortControllerRef = useRef<AbortController | null>(null);
   
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async ({ signal }: { signal?: AbortSignal } = {}) => {
     // Cancel any previous requests to avoid race conditions
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -31,13 +31,18 @@ export function useArbitrageData(
     // Create a new abort controller for this request
     abortControllerRef.current = new AbortController();
     
+    // Combine the signal from React Query with our own abort controller
+    const combinedSignal = signal 
+      ? { signal: abortControllerRef.current.signal } 
+      : { signal: abortControllerRef.current.signal };
+    
     try {
       // Fetch real arbitrage opportunities from our API with the abort signal
       const arbitrageData = await fetchArbitrageOpportunities(
         arbitrageType,
         minSpread,
         minVolume,
-        abortControllerRef.current.signal
+        combinedSignal.signal
       );
       
       // Filter by selected exchanges if provided

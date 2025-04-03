@@ -6,6 +6,15 @@ import { ExternalLink, RefreshCw } from 'lucide-react';
 import { fetchNetworkFeeData } from '@/lib/api/cryptoDataApi';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
+
+// Define the NetworkFeeData type
+interface NetworkFeeData {
+  token: string;
+  network: string;
+  fee: number;
+  congestion: 'low' | 'medium' | 'high';
+}
 
 const NetworkRecommendations = () => {
   // Use React Query for efficient data fetching with caching and automatic refetching
@@ -16,7 +25,9 @@ const NetworkRecommendations = () => {
     isFetching 
   } = useQuery({
     queryKey: ['networkFeeData'],
-    queryFn: fetchNetworkFeeData,
+    queryFn: async ({ signal }) => {
+      return await fetchNetworkFeeData(signal);
+    },
     refetchInterval: 60000, // Refresh every 1 minute
     staleTime: 30000, // Consider data stale after 30 seconds
     retry: 3,

@@ -30,7 +30,7 @@ const ArbitrageOpportunity = ({
   buyPrice,
   sellPrice,
   spreadPercentage,
-  riskLevel,
+  riskLevel = 'medium', // Provide default values to prevent undefined errors
   timestamp,
   volume24h,
   className,
@@ -95,6 +95,18 @@ const ArbitrageOpportunity = ({
     });
   };
 
+  // Get risk level display text with a safeguard against undefined values
+  const getRiskLevelText = () => {
+    if (!riskLevel) return 'Medium'; // Default fallback
+    return riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1);
+  };
+
+  // Get type display text with a safeguard against undefined values
+  const getTypeText = () => {
+    if (!type) return 'Direct'; // Default fallback
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
   return (
     <div className={cn(
       "bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-blue-500 transition-all",
@@ -122,7 +134,7 @@ const ArbitrageOpportunity = ({
             type === 'triangular' ? "bg-purple-900/30 text-purple-400" :
             "bg-amber-900/30 text-amber-400"
           )}>
-            {type.charAt(0).toUpperCase() + type.slice(1)}
+            {getTypeText()}
           </span>
           <span className="text-xs text-slate-400">{formatTimeDifference(timestamp)}</span>
         </div>
@@ -157,7 +169,7 @@ const ArbitrageOpportunity = ({
             riskLevel === 'low' ? "text-green-500" : 
             riskLevel === 'medium' ? "text-yellow-500" : "text-red-500"
           )}>
-            {riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)}
+            {getRiskLevelText()}
           </p>
         </div>
         <div>

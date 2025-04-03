@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, LineChart, BarChart3, History, Bot } from 'lucide-react';
 import ArbitrageOpportunity from '@/components/dashboard/ArbitrageOpportunity';
@@ -92,9 +91,11 @@ const Dashboard = () => {
                 buyPrice={opportunity.buyPrice}
                 sellPrice={opportunity.sellPrice}
                 spreadPercentage={opportunity.spreadPercentage}
-                potentialProfit={opportunity.potentialProfit}
+                riskLevel={opportunity.riskLevel || 'medium'}
                 timestamp={opportunity.timestamp}
                 volume24h={opportunity.volume24h}
+                type={opportunity.type || 'direct'}
+                recommendedNetworks={opportunity.recommendedNetworks || []}
               />
             ))
           ) : (
