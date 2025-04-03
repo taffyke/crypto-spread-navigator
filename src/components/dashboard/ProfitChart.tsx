@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
 import { cn } from '@/lib/utils';
 import { useTickerWebSocket } from '@/hooks/use-websocket';
 import { toast } from '@/hooks/use-toast';
 import { Ticker } from '@/lib/exchanges/exchangeApi';
+import { calculateProfitData } from '@/lib/api/cryptoDataApi';
 
 export interface ProfitDataPoint {
   date: string;
@@ -55,20 +55,9 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
       try {
         setIsLoading(true);
         
-        const initialEmptyData: ProfitDataPoint[] = [];
-        
-        for (let i = 0; i < 30; i++) {
-          const date = new Date();
-          date.setDate(date.getDate() - (29 - i));
-          
-          initialEmptyData.push({
-            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            profit: 0,
-            cumulativeProfit: 0
-          });
-        }
-        
-        setChartData(initialEmptyData);
+        // Use real ticker data to generate profit data that reflects actual market movements
+        const profitData = calculateProfitData(tickerData, 30);
+        setChartData(profitData);
       } catch (err) {
         console.error("Failed to fetch historical data:", err);
         toast({
@@ -82,7 +71,7 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
     };
     
     fetchHistoricalData();
-  }, [initialData, symbol]);
+  }, [initialData, symbol, tickerData]);
   
   useEffect(() => {
     // Explicitly cast tickerData to Ticker if it exists and has the right shape
@@ -103,7 +92,7 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
           newData[lastIndex] = {
             ...newData[lastIndex],
             profit: newProfit,
-            cumulativeProfit: newData[lastIndex - 1]?.cumulativeProfit + newProfit || newProfit
+            cumulativeProfit: lastIndex > 0 ? newData[lastIndex - 1].cumulativeProfit + newProfit : newProfit
           };
         } else if (newData.length > 0) {
           const lastCumulative = newData[newData.length - 1].cumulativeProfit || 0;

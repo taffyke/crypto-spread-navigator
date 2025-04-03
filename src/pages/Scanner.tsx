@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Filter, RefreshCw, Download, CornerDownRight, Triangle, Clock } from 'lucide-react';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
@@ -19,7 +20,7 @@ const Scanner = () => {
   const [checkDepositsChecked, setCheckDepositsChecked] = useState(true);
   const [showCompletedChecked, setShowCompletedChecked] = useState(false);
   
-  // Use our custom hook to fetch arbitrage data
+  // Use our custom hook to fetch real arbitrage data
   const { 
     data: opportunities, 
     isLoading, 
@@ -30,7 +31,8 @@ const Scanner = () => {
     selectedExchanges,
     minSpread,
     minVolume,
-    true // Auto-refresh
+    true, // Auto-refresh
+    { refreshInterval: 30000 } // Refresh every 30 seconds for more accurate data
   );
 
   const handleExport = () => {

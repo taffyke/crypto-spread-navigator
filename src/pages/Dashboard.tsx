@@ -1,19 +1,51 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, LineChart, BarChart3, History, Bot } from 'lucide-react';
 import ArbitrageOpportunity from '@/components/dashboard/ArbitrageOpportunity';
 import StatCard from '@/components/dashboard/StatCard';
 import SmallStatCard from '@/components/dashboard/SmallStatCard';
-import ProfitChart, { ProfitDataPoint } from '@/components/dashboard/ProfitChart';
+import ProfitChart from '@/components/dashboard/ProfitChart';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
 import MarketOverview from '@/components/dashboard/MarketOverview';
 import ExchangeVolume from '@/components/dashboard/ExchangeVolume';
-import { generateArbitrageOpportunities, generateProfitChartData, exchanges } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
+import { exchanges } from '@/data/mockData';
+import { toast } from '@/hooks/use-toast';
+import { fetchArbitrageOpportunities } from '@/lib/api/cryptoDataApi';
 
 const Dashboard = () => {
-  const [selectedExchanges, setSelectedExchanges] = React.useState<string[]>(['binance', 'coinbase', 'kucoin']);
-  const opportunities = generateArbitrageOpportunities(20);
-  const profitData: ProfitDataPoint[] = generateProfitChartData(30);
+  const [selectedExchanges, setSelectedExchanges] = useState<string[]>(['binance', 'coinbase', 'kucoin']);
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  useEffect(() => {
+    // Fetch real arbitrage opportunities
+    const getArbitrageOpportunities = async () => {
+      setIsLoading(true);
+      try {
+        const data = await fetchArbitrageOpportunities('direct', 0.5, 10000);
+        setOpportunities(data);
+      } catch (err) {
+        console.error("Failed to fetch arbitrage opportunities:", err);
+        toast({
+          title: "Data Loading Error",
+          description: "Unable to load arbitrage opportunities. Please refresh and try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    getArbitrageOpportunities();
+    
+    // Set up regular data refresh
+    const interval = setInterval(() => {
+      getArbitrageOpportunities();
+    }, 60000); // Refresh every minute
+    
+    return () => clearInterval(interval);
+  }, []);
   
   // Filter top 3 opportunities for the dashboard cards
   const topOpportunities = opportunities.slice(0, 3);
@@ -35,21 +67,41 @@ const Dashboard = () => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {topOpportunities.map((opportunity) => (
-            <ArbitrageOpportunity 
-              key={opportunity.id}
-              id={opportunity.id}
-              pair={opportunity.pair}
-              buyExchange={opportunity.buyExchange}
-              sellExchange={opportunity.sellExchange}
-              buyPrice={opportunity.buyPrice}
-              sellPrice={opportunity.sellPrice}
-              spreadPercentage={opportunity.spreadPercentage}
-              potentialProfit={opportunity.potentialProfit}
-              timestamp={opportunity.timestamp}
-              volume24h={opportunity.volume24h}
-            />
-          ))}
+          {isLoading ? (
+            Array(3).fill(0).map((_, index) => (
+              <div 
+                key={index} 
+                className="bg-slate-800 border border-slate-700 rounded-lg p-4 animate-pulse"
+              >
+                <div className="h-6 bg-slate-700 rounded mb-4 w-3/4"></div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-slate-700 rounded w-full"></div>
+                  <div className="h-4 bg-slate-700 rounded w-5/6"></div>
+                  <div className="h-4 bg-slate-700 rounded w-4/6"></div>
+                </div>
+              </div>
+            ))
+          ) : topOpportunities.length > 0 ? (
+            topOpportunities.map((opportunity) => (
+              <ArbitrageOpportunity 
+                key={opportunity.id}
+                id={opportunity.id}
+                pair={opportunity.pair}
+                buyExchange={opportunity.buyExchange}
+                sellExchange={opportunity.sellExchange}
+                buyPrice={opportunity.buyPrice}
+                sellPrice={opportunity.sellPrice}
+                spreadPercentage={opportunity.spreadPercentage}
+                potentialProfit={opportunity.potentialProfit}
+                timestamp={opportunity.timestamp}
+                volume24h={opportunity.volume24h}
+              />
+            ))
+          ) : (
+            <div className="col-span-3 text-center py-8 bg-slate-800 border border-slate-700 rounded-lg">
+              <p className="text-slate-400">No arbitrage opportunities found. Please try again later.</p>
+            </div>
+          )}
         </div>
       </div>
       
@@ -57,7 +109,7 @@ const Dashboard = () => {
         <StatCard 
           title="Active Arbitrage Opportunities" 
           value={opportunities.length.toString()} 
-          change="12%" 
+          change={opportunities.length > 10 ? "12%" : "5%"} 
           isPositive={true} 
           icon={TrendingUp}
         />
@@ -86,7 +138,7 @@ const Dashboard = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <div className="lg:col-span-2">
-          <ProfitChart data={profitData} title="Profit Performance (30 Days)" />
+          <ProfitChart title="Profit Performance (30 Days)" />
         </div>
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
