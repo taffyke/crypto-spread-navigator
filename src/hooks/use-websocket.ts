@@ -32,9 +32,9 @@ export function useWebSocketData<T>(
             exchangeId,
             topic as any,
             symbol,
-            (newData: T) => {
+            (newData: any) => {
               if (isMounted) {
-                setData(newData);
+                setData(newData as T);
               }
             }
           );
@@ -89,8 +89,8 @@ export function useWebSocketData<T>(
         exchangeId,
         topic as any,
         symbol,
-        (newData: T) => {
-          setData(newData);
+        (newData: any) => {
+          setData(newData as T);
         }
       );
       
@@ -287,4 +287,4 @@ export function useMultiTickerWebSocket(
     error,
     reconnect
   };
-} 
+}

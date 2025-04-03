@@ -41,8 +41,8 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
   const [chartData, setChartData] = useState<ProfitDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Properly type the tickerData as Ticker or null
-  const { data: tickerData, isConnected, error } = useTickerWebSocket<Ticker>('binance', symbol, true);
+  // Remove the generic type parameter from useTickerWebSocket
+  const { data: tickerData, isConnected, error } = useTickerWebSocket('binance', symbol, true);
   
   useEffect(() => {
     if (initialData && initialData.length > 0) {
@@ -85,12 +85,15 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
   }, [initialData, symbol]);
   
   useEffect(() => {
-    // Add type guard to ensure tickerData is Ticker type and has changePercent
-    if (tickerData && 'changePercent' in tickerData && chartData.length > 0) {
+    // Explicitly cast tickerData to Ticker if it exists and has the right shape
+    const ticker = tickerData as Ticker | null;
+    
+    if (ticker && typeof ticker === 'object' && 'changePercent' in ticker && chartData.length > 0) {
       const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       
-      // Now TypeScript knows tickerData has changePercent property
-      const newProfit = tickerData.changePercent * 10;
+      // Cast changePercent to number to ensure it can be used in arithmetic operations
+      const changePercent = Number(ticker.changePercent);
+      const newProfit = changePercent * 10;
       
       setChartData(prevData => {
         const newData = [...prevData];
