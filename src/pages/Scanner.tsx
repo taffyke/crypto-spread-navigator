@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Filter, RefreshCw, Download, CornerDownRight, Triangle, Clock } from 'lucide-react';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
 import ArbitrageTable from '@/components/scanner/ArbitrageTable';
+import { ArbitrageOpportunity as ArbitrageTableOpportunity } from '@/components/scanner/ArbitrageTable';
 import NetworkRecommendations from '@/components/scanner/NetworkRecommendations';
 import { exchanges } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -144,7 +146,7 @@ const Scanner = () => {
               
               <TabsContent value="direct" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities as unknown as ArbitrageTable.ArbitrageOpportunity[]} 
+                  opportunities={opportunities as ArbitrageTableOpportunity[]} 
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="direct"
@@ -153,7 +155,7 @@ const Scanner = () => {
               
               <TabsContent value="triangular" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities as unknown as ArbitrageTable.ArbitrageOpportunity[]}
+                  opportunities={opportunities as ArbitrageTableOpportunity[]}
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="triangular"
@@ -162,7 +164,7 @@ const Scanner = () => {
               
               <TabsContent value="futures" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities as unknown as ArbitrageTable.ArbitrageOpportunity[]} 
+                  opportunities={opportunities as ArbitrageTableOpportunity[]} 
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="futures"
