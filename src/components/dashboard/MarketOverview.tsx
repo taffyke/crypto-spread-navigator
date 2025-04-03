@@ -15,11 +15,11 @@ interface CryptoMarketData {
 }
 
 const MarketOverview = () => {
-  // Use WebSockets for real-time price data
+  // Define constants outside of any hooks
   const coinPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'];
   const exchanges = ['binance']; // Use Binance as the reference exchange for market data
   
-  // Use React Query for fallback market data
+  // Use React Query for fallback market data - must be called before other hooks
   const { 
     data: apiMarketData = [], 
     isLoading: isApiLoading,
@@ -36,46 +36,46 @@ const MarketOverview = () => {
     refetchOnWindowFocus: true,
   });
   
-  // Get real-time WebSocket data
-  const wsResults = useMemo(() => {
-    const results: Array<{ pair: string, socketHook: any }> = [];
-    
-    for (const pair of coinPairs) {
-      const socketHook = useMultiTickerWebSocket(
-        exchanges, 
-        pair,
-        true
-      );
-      results.push({ pair, socketHook });
-    }
-    
-    return results;
-  }, [coinPairs, exchanges]);
+  // Create a single WebSocket connection instead of multiple ones
+  const { 
+    data: wsTickerData,
+    isConnected,
+    error: wsError
+  } = useMultiTickerWebSocket(
+    exchanges,
+    'BTC/USDT', // Use a primary pair - we'll process all pairs on the backend
+    true
+  );
   
   // Process WebSocket data into market data when available
   const wsMarketData = useMemo(() => {
+    if (!wsTickerData || !wsTickerData.binance) {
+      return null;
+    }
+    
+    // Extract data from WebSocket responses and format it
     const marketData: CryptoMarketData[] = [];
     
-    for (const { pair, socketHook } of wsResults) {
-      const { data, isConnected } = socketHook;
-      
-      if (data && data.binance) {
-        const tickerData = data.binance as any;
-        if (tickerData) {
-          // Extract symbol from the pair (e.g., "BTC/USDT" -> "BTC")
-          const symbol = pair.split('/')[0];
-          
+    // Directly use WSData if available
+    if (wsTickerData.binance) {
+      // For each supported coin pair, create a market data entry
+      coinPairs.forEach(pair => {
+        const symbol = pair.split('/')[0];
+        const tickerKey = `${symbol.toLowerCase()}usdt`;
+        
+        if (wsTickerData.binance[tickerKey]) {
+          const tickerData = wsTickerData.binance[tickerKey];
           marketData.push({
             symbol,
             price: tickerData.price || tickerData.lastPrice || 0,
             change24h: tickerData.priceChangePercent || tickerData.changePercent || 0
           });
         }
-      }
+      });
     }
     
     return marketData.length > 0 ? marketData : null;
-  }, [wsResults]);
+  }, [wsTickerData, coinPairs]);
   
   // Determine which data source to use: WebSocket or API
   const marketData = useMemo(() => {

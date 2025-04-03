@@ -28,6 +28,7 @@ const Charts = () => {
   
   const buyExchange = queryParams.get('buy') || 'Binance';
   const sellExchange = queryParams.get('sell') || 'Coinbase';
+  const pairToUse = pair || 'BTC/USDT';
   
   const [priceHistory, setPriceHistory] = useState<{ timestamp: number; buyPrice: number; sellPrice: number; spread: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,7 +44,7 @@ const Charts = () => {
     reconnect 
   } = useMultiTickerWebSocket(
     [normalizedBuyExchange, normalizedSellExchange],
-    pair || 'BTC/USDT'
+    pairToUse
   );
   
   // Add new price data points when ticker data changes
@@ -52,32 +53,38 @@ const Charts = () => {
       const buyTickerData = tickerData[normalizedBuyExchange];
       const sellTickerData = tickerData[normalizedSellExchange];
       
-      if (buyTickerData?.last && sellTickerData?.last) {
-        const buyPrice = parseFloat(buyTickerData.last);
-        const sellPrice = parseFloat(sellTickerData.last);
-        const spread = ((sellPrice - buyPrice) / buyPrice) * 100;
+      if (buyTickerData && sellTickerData) {
+        // Safely extract price data with fallbacks
+        const buyPrice = parseFloat(buyTickerData.last || buyTickerData.price || '0');
+        const sellPrice = parseFloat(sellTickerData.last || sellTickerData.price || '0');
         
-        setPriceHistory(prev => {
-          // Add new data point
-          const newDataPoint = {
-            timestamp: Date.now(),
-            buyPrice,
-            sellPrice,
-            spread
-          };
+        if (buyPrice > 0 && sellPrice > 0) {
+          const spread = ((sellPrice - buyPrice) / buyPrice) * 100;
           
-          // Keep only the most recent 100 data points
-          const updatedHistory = [...prev, newDataPoint].slice(-100);
-          return updatedHistory;
-        });
-        
-        setIsLoading(false);
+          setPriceHistory(prev => {
+            // Add new data point
+            const newDataPoint = {
+              timestamp: Date.now(),
+              buyPrice,
+              sellPrice,
+              spread
+            };
+            
+            // Keep only the most recent 100 data points
+            const updatedHistory = [...prev, newDataPoint].slice(-100);
+            return updatedHistory;
+          });
+          
+          setIsLoading(false);
+        }
       }
     }
   }, [tickerData, normalizedBuyExchange, normalizedSellExchange]);
   
   // Format prices for display
   const formatPrice = (price: number) => {
+    if (isNaN(price) || price === 0) return '$0.00';
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -100,7 +107,7 @@ const Charts = () => {
     navigate(-1);
   };
   
-  // Get latest prices
+  // Get latest prices with safe fallbacks
   const latestData = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1] : null;
   const currentBuyPrice = latestData?.buyPrice || 0;
   const currentSellPrice = latestData?.sellPrice || 0;

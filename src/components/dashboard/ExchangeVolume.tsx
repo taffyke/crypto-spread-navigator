@@ -18,6 +18,7 @@ const COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ef4444'];
 
 const ExchangeVolume = () => {
   // Use React Query for fallback data fetching with caching and automatic refetching
+  // Place this hook before any custom hooks
   const { 
     data: apiVolumeData = [], 
     isLoading: isApiLoading, 
@@ -34,8 +35,10 @@ const ExchangeVolume = () => {
     refetchOnWindowFocus: true,
   });
   
-  // Use WebSocket to get real-time ticker data from multiple exchanges
+  // Define exchange IDs outside of hooks
   const exchangeIds = ['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io'];
+  
+  // Use WebSocket to get real-time ticker data from multiple exchanges
   const {
     data: wsData,
     isConnected,
@@ -79,6 +82,7 @@ const ExchangeVolume = () => {
     return apiVolumeData;
   }, [wsVolumeData, apiVolumeData]);
   
+  // Make sure isConnected exists before trying to access properties
   const isLoading = (!volumeData || volumeData.length === 0) && (isApiLoading || (isConnected && Object.keys(isConnected).some(k => isConnected[k] === false)));
   
   const formatVolumeData = (data: ExchangeVolumeData[]) => {

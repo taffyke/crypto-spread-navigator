@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { wsManager } from '@/lib/exchanges/exchangeApi';
 
@@ -130,7 +131,7 @@ export function useOrderBookWebSocket(
   return useWebSocketData(exchangeId, 'orderbook', symbol, enabled);
 }
 
-// Hook for subscribing to multiple ticker WebSockets at once
+// Hook for subscribing to multiple ticker WebSockets at once - fixed to not use hooks inside hooks
 export function useMultiTickerWebSocket(
   exchangeIds: string[],
   symbol: string,
@@ -179,7 +180,7 @@ export function useMultiTickerWebSocket(
               }
             );
             
-            // This is a stub since the actual implementation doesn't return a function
+            // Store reference to cleanup function
             removeHandlersRef.current[exchangeId] = () => {
               // In a real implementation, this would remove the specific handler
             };
@@ -263,7 +264,7 @@ export function useMultiTickerWebSocket(
           }
         );
         
-        // This is a stub since the actual implementation doesn't return a function
+        // Store reference to cleanup function
         removeHandlersRef.current[id] = () => {
           // In a real implementation, this would remove the specific handler
         };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
 import { cn } from '@/lib/utils';
@@ -25,10 +26,10 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>)
       <div className="bg-slate-800 border border-slate-700 rounded-md p-3 shadow-lg">
         <p className="text-slate-300 text-xs mb-1">{label}</p>
         <p className="text-green-500 text-sm font-medium">
-          Daily: ${payload[0].value?.toFixed(2)}
+          Daily: ${payload[0]?.value?.toFixed(2) || '0.00'}
         </p>
         <p className="text-blue-500 text-sm font-medium">
-          Cumulative: ${payload[1].value?.toFixed(2)}
+          Cumulative: ${payload[1]?.value?.toFixed(2) || '0.00'}
         </p>
       </div>
     );
@@ -41,9 +42,10 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
   const [chartData, setChartData] = useState<ProfitDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Remove the generic type parameter from useTickerWebSocket
+  // Get ticker data for profit calculation
   const { data: tickerData, isConnected, error } = useTickerWebSocket('binance', symbol, true);
   
+  // Set up initial chart data
   useEffect(() => {
     if (initialData && initialData.length > 0) {
       setChartData(initialData);
@@ -56,7 +58,8 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
         setIsLoading(true);
         
         // Use real ticker data to generate profit data that reflects actual market movements
-        const profitData = calculateProfitData(tickerData, 30);
+        // Safely pass tickerData with fallbacks
+        const profitData = calculateProfitData(tickerData || {}, 30);
         setChartData(profitData);
       } catch (err) {
         console.error("Failed to fetch historical data:", err);
@@ -73,45 +76,52 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
     fetchHistoricalData();
   }, [initialData, symbol, tickerData]);
   
+  // Update chart data when ticker data changes
   useEffect(() => {
-    // Explicitly cast tickerData to Ticker if it exists and has the right shape
+    // Safely cast tickerData to Ticker if it exists and has the right shape
     const ticker = tickerData as Ticker | null;
     
     if (ticker && typeof ticker === 'object' && 'changePercent' in ticker && chartData.length > 0) {
       const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       
-      // Cast changePercent to number to ensure it can be used in arithmetic operations
-      const changePercent = Number(ticker.changePercent);
-      const newProfit = changePercent * 10;
-      
-      setChartData(prevData => {
-        const newData = [...prevData];
-        const lastIndex = newData.findIndex(d => d.date === today);
+      // Cast changePercent to number with fallback
+      const changePercent = typeof ticker.changePercent === 'number' 
+        ? ticker.changePercent 
+        : parseFloat(String(ticker.changePercent) || '0');
         
-        if (lastIndex >= 0) {
-          newData[lastIndex] = {
-            ...newData[lastIndex],
-            profit: newProfit,
-            cumulativeProfit: lastIndex > 0 ? newData[lastIndex - 1].cumulativeProfit + newProfit : newProfit
-          };
-        } else if (newData.length > 0) {
-          const lastCumulative = newData[newData.length - 1].cumulativeProfit || 0;
-          newData.push({
-            date: today,
-            profit: newProfit,
-            cumulativeProfit: lastCumulative + newProfit
-          });
+      if (!isNaN(changePercent)) {
+        const newProfit = changePercent * 10;
+        
+        setChartData(prevData => {
+          const newData = [...prevData];
+          const lastIndex = newData.findIndex(d => d.date === today);
           
-          if (newData.length > 30) {
-            newData.shift();
+          if (lastIndex >= 0) {
+            newData[lastIndex] = {
+              ...newData[lastIndex],
+              profit: newProfit,
+              cumulativeProfit: lastIndex > 0 ? newData[lastIndex - 1].cumulativeProfit + newProfit : newProfit
+            };
+          } else if (newData.length > 0) {
+            const lastCumulative = newData[newData.length - 1].cumulativeProfit || 0;
+            newData.push({
+              date: today,
+              profit: newProfit,
+              cumulativeProfit: lastCumulative + newProfit
+            });
+            
+            if (newData.length > 30) {
+              newData.shift();
+            }
           }
-        }
-        
-        return newData;
-      });
+          
+          return newData;
+        });
+      }
     }
   }, [tickerData, chartData]);
   
+  // Handle errors
   useEffect(() => {
     if (error) {
       toast({
