@@ -10,6 +10,23 @@ interface UseArbitrageDataOptions {
   staleTime?: number;
 }
 
+// Define the type for arbitrage opportunities
+interface ArbitrageOpportunity {
+  id: string;
+  pair: string;
+  buyExchange?: string;
+  sellExchange?: string;
+  exchange?: string;
+  buyPrice?: number;
+  sellPrice?: number;
+  spreadPercentage: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  timestamp: Date;
+  volume24h: number;
+  recommendedNetworks: string[];
+  type: string;
+}
+
 export function useArbitrageData(
   arbitrageType: 'direct' | 'triangular' | 'futures',
   selectedExchanges: string[] = [],
@@ -45,7 +62,7 @@ export function useArbitrageData(
         combinedSignal.signal
       );
       
-      // Filter by selected exchanges if provided
+      // Filter by selected exchanges if provided and ensure riskLevel is properly typed
       const filteredData = selectedExchanges.length > 0
         ? arbitrageData.filter((item: any) => {
             if (arbitrageType === 'direct') {
@@ -65,9 +82,26 @@ export function useArbitrageData(
           })
         : arbitrageData;
 
+      // Ensure riskLevel is one of the allowed values
+      const typedData = filteredData.map((item: any): ArbitrageOpportunity => {
+        // Ensure riskLevel is one of the valid options
+        let validRiskLevel: 'low' | 'medium' | 'high';
+        if (item.riskLevel === 'low' || item.riskLevel === 'medium' || item.riskLevel === 'high') {
+          validRiskLevel = item.riskLevel;
+        } else {
+          // Default to medium if invalid value
+          validRiskLevel = 'medium';
+        }
+        
+        return {
+          ...item,
+          riskLevel: validRiskLevel
+        };
+      });
+
       lastFetchRef.current = Date.now();
       setLastUpdated(Date.now());
-      return filteredData;
+      return typedData;
     } catch (err) {
       // Only log and show error if it's not an abort error
       if (err instanceof Error && err.name !== 'AbortError') {

@@ -231,3 +231,47 @@ export async function fetchExchangeVolumeData(signal?: AbortSignal) {
     throw error;
   }
 }
+
+/**
+ * Calculate profit data based on ticker information
+ * This function generates simulated profit data for the chart display
+ */
+export function calculateProfitData(tickerData: any, days: number = 30): { date: string; profit: number; cumulativeProfit: number }[] {
+  const result = [];
+  const currentDate = new Date();
+  let cumulativeProfit = 0;
+  
+  // Generate profit data for the specified number of days
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(currentDate);
+    date.setDate(date.getDate() - i);
+    
+    // Format the date as Month Day (e.g., "Jan 15")
+    const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    
+    // Generate a semi-random profit value influenced by ticker data if available
+    let profitValue;
+    if (tickerData && typeof tickerData === 'object' && 'changePercent' in tickerData) {
+      // Use ticker change percent to influence profit, with some randomness
+      const changePercent = Number(tickerData.changePercent) || 0;
+      profitValue = (Math.random() * 100 + changePercent * 20) * (Math.random() > 0.3 ? 1 : -1);
+    } else {
+      // Fallback to completely random values if no ticker data
+      profitValue = (Math.random() * 200 - 80) * (i === 0 ? 1.5 : 1); // Make the last day more dramatic
+    }
+    
+    // Round to 2 decimal places
+    profitValue = Math.round(profitValue * 100) / 100;
+    
+    // Update cumulative profit
+    cumulativeProfit += profitValue;
+    
+    result.push({
+      date: formattedDate,
+      profit: profitValue,
+      cumulativeProfit: Math.round(cumulativeProfit * 100) / 100
+    });
+  }
+  
+  return result;
+}

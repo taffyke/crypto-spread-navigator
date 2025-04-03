@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Filter, RefreshCw, Download, CornerDownRight, Triangle, Clock } from 'lucide-react';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
@@ -7,6 +8,23 @@ import { exchanges } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
 import { toast } from '@/hooks/use-toast';
+
+// Define the type for arbitrage opportunities
+interface ArbitrageOpportunity {
+  id: string;
+  pair: string;
+  buyExchange?: string;
+  sellExchange?: string;
+  exchange?: string;
+  buyPrice?: number;
+  sellPrice?: number;
+  spreadPercentage: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  timestamp: Date;
+  volume24h: number;
+  recommendedNetworks: string[];
+  type: string;
+}
 
 const Scanner = () => {
   const [selectedExchanges, setSelectedExchanges] = useState<string[]>(['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io']);
@@ -128,7 +146,7 @@ const Scanner = () => {
               
               <TabsContent value="direct" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities} 
+                  opportunities={opportunities as ArbitrageOpportunity[]} 
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="direct"
@@ -137,7 +155,7 @@ const Scanner = () => {
               
               <TabsContent value="triangular" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities}
+                  opportunities={opportunities as ArbitrageOpportunity[]}
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="triangular"
@@ -146,7 +164,7 @@ const Scanner = () => {
               
               <TabsContent value="futures" className="mt-0">
                 <ArbitrageTable 
-                  opportunities={opportunities} 
+                  opportunities={opportunities as ArbitrageOpportunity[]} 
                   isLoading={isLoading}
                   onRefresh={refresh}
                   arbitrageType="futures"
