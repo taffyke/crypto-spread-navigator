@@ -1,10 +1,11 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { fetchCryptoMarketData } from '@/lib/api/cryptoDataApi';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
 
 // Define the CryptoMarketData type
 interface CryptoMarketData {
@@ -14,10 +15,30 @@ interface CryptoMarketData {
 }
 
 const MarketOverview = () => {
-  // Use React Query for efficient data fetching with caching and automatic refetching
+  // Use WebSockets for real-time price data
+  const coinPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'];
+  const exchanges = ['binance']; // Use Binance as the reference exchange for market data
+  
+  // Get real-time WebSocket data
+  const wsResults = useMemo(() => {
+    const results: Array<{ pair: string, socketHook: any }> = [];
+    
+    for (const pair of coinPairs) {
+      const socketHook = useMultiTickerWebSocket(
+        exchanges, 
+        pair,
+        true
+      );
+      results.push({ pair, socketHook });
+    }
+    
+    return results;
+  }, []);
+  
+  // Use React Query for fallback market data
   const { 
-    data: marketData = [], 
-    isLoading,
+    data: apiMarketData = [], 
+    isLoading: isApiLoading,
     refetch, 
     isFetching 
   } = useQuery({
@@ -30,6 +51,44 @@ const MarketOverview = () => {
     retry: 3,
     refetchOnWindowFocus: true,
   });
+  
+  // Process WebSocket data into market data when available
+  const wsMarketData = useMemo(() => {
+    const marketData: CryptoMarketData[] = [];
+    
+    for (const { pair, socketHook } of wsResults) {
+      const { data, isConnected } = socketHook;
+      
+      if (data && data.binance) {
+        const tickerData = data.binance as any;
+        if (tickerData) {
+          // Extract symbol from the pair (e.g., "BTC/USDT" -> "BTC")
+          const symbol = pair.split('/')[0];
+          
+          marketData.push({
+            symbol,
+            price: tickerData.price || tickerData.lastPrice || 0,
+            change24h: tickerData.priceChangePercent || tickerData.changePercent || 0
+          });
+        }
+      }
+    }
+    
+    return marketData.length > 0 ? marketData : null;
+  }, [wsResults]);
+  
+  // Determine which data source to use: WebSocket or API
+  const marketData = useMemo(() => {
+    if (wsMarketData && wsMarketData.length > 0) {
+      console.log('Using real-time WebSocket market data');
+      return wsMarketData;
+    }
+    
+    console.log('Using API market data');
+    return apiMarketData;
+  }, [wsMarketData, apiMarketData]);
+  
+  const isLoading = (!marketData || marketData.length === 0) && isApiLoading;
   
   const handleRefresh = () => {
     refetch();

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, Filter, RefreshCw, Download, CornerDownRight, Triangle, Clock } from 'lucide-react';
 import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
 import ArbitrageTable from '@/components/scanner/ArbitrageTable';
@@ -9,6 +9,7 @@ import { exchanges } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
 import { toast } from '@/hooks/use-toast';
+import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
 
 // Define the type for arbitrage opportunities to match ArbitrageTable's expected type
 interface ArbitrageOpportunity {
@@ -26,6 +27,15 @@ interface ArbitrageOpportunity {
   type: string;
 }
 
+interface ExchangeTickerData {
+  symbol: string;
+  price: number;
+  bidPrice?: number;
+  askPrice?: number;
+  volume: number;
+  timestamp: number;
+}
+
 const Scanner = () => {
   const [selectedExchanges, setSelectedExchanges] = useState<string[]>(['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io']);
   const [minSpread, setMinSpread] = useState<number>(1.0);
@@ -36,9 +46,21 @@ const Scanner = () => {
   const [checkLiquidityChecked, setCheckLiquidityChecked] = useState(true);
   const [checkDepositsChecked, setCheckDepositsChecked] = useState(true);
   const [showCompletedChecked, setShowCompletedChecked] = useState(false);
+  const [activePairs, setActivePairs] = useState<string[]>(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT']);
+  
+  // Use Web Socket for real-time data from exchanges
+  const {
+    data: wsTickerData,
+    isConnected,
+    error: wsError
+  } = useMultiTickerWebSocket(
+    selectedExchanges,
+    activePairs[0], // Start with first pair
+    selectedExchanges.length > 0 // Only enable if exchanges are selected
+  );
   
   const { 
-    data: opportunities, 
+    data: simulatedOpportunities, 
     isLoading, 
     refresh,
     lastUpdated
@@ -48,8 +70,105 @@ const Scanner = () => {
     minSpread,
     minVolume,
     true, // Auto-refresh
-    { refreshInterval: 30000 } // Refresh every 30 seconds for more accurate data
+    { refreshInterval: 30000 } // Refresh every 30 seconds for simulated data
   );
+
+  // Generate real opportunities from WebSocket data
+  const realTimeOpportunities = useMemo(() => {
+    if (!wsTickerData || Object.keys(wsTickerData).length === 0) {
+      return [];
+    }
+
+    const opportunities: ArbitrageTableOpportunity[] = [];
+    const exchangeNames = Object.keys(wsTickerData);
+    
+    // For each pair of exchanges, check for arbitrage opportunities
+    for (let i = 0; i < exchangeNames.length; i++) {
+      for (let j = i + 1; j < exchangeNames.length; j++) {
+        const exchange1 = exchangeNames[i];
+        const exchange2 = exchangeNames[j];
+        
+        // Skip if either exchange data is missing
+        if (!wsTickerData[exchange1] || !wsTickerData[exchange2]) continue;
+        
+        const data1 = wsTickerData[exchange1] as ExchangeTickerData;
+        const data2 = wsTickerData[exchange2] as ExchangeTickerData;
+        
+        // Calculate price difference percentage
+        if (data1.price && data2.price) {
+          const priceDiff = Math.abs(data1.price - data2.price);
+          const spreadPercentage = (priceDiff / Math.min(data1.price, data2.price)) * 100;
+          
+          // Only add if spread is greater than minimum
+          if (spreadPercentage >= minSpread) {
+            // Determine buy and sell sides
+            let buyExchange, sellExchange, buyPrice, sellPrice;
+            if (data1.price < data2.price) {
+              buyExchange = exchange1;
+              sellExchange = exchange2;
+              buyPrice = data1.price;
+              sellPrice = data2.price;
+            } else {
+              buyExchange = exchange2;
+              sellExchange = exchange1;
+              buyPrice = data2.price;
+              sellPrice = data1.price;
+            }
+            
+            const opportunity: ArbitrageTableOpportunity = {
+              id: `${buyExchange}-${sellExchange}-${data1.symbol || activePairs[0]}-${Date.now()}`,
+              pair: data1.symbol || activePairs[0],
+              buyExchange,
+              sellExchange,
+              buyPrice,
+              sellPrice,
+              spreadPercentage,
+              riskLevel: spreadPercentage > 3 ? 'low' : spreadPercentage > 1.5 ? 'medium' : 'high',
+              timestamp: new Date(),
+              volume24h: (data1.volume || 0) + (data2.volume || 0),
+              recommendedNetworks: ['ETH', 'BSC'],
+              type: arbitrageType
+            };
+            
+            opportunities.push(opportunity);
+          }
+        }
+      }
+    }
+    
+    return opportunities;
+  }, [wsTickerData, minSpread, arbitrageType, activePairs]);
+
+  // Combine real-time and simulated data
+  const opportunities = useMemo(() => {
+    // If we have real-time data, prioritize it
+    if (realTimeOpportunities.length > 0) {
+      console.log('Using real-time WebSocket data:', realTimeOpportunities.length, 'opportunities');
+      return realTimeOpportunities;
+    }
+    
+    // Fall back to simulated data
+    console.log('Using simulated data:', simulatedOpportunities.length, 'opportunities');
+    return simulatedOpportunities;
+  }, [realTimeOpportunities, simulatedOpportunities]);
+
+  // Log websocket status
+  useEffect(() => {
+    if (wsError) {
+      console.error('WebSocket error:', wsError);
+      toast({
+        title: "WebSocket Error",
+        description: "Failed to connect to exchange WebSockets. Using simulated data instead.",
+        variant: "destructive"
+      });
+    } else if (isConnected) {
+      console.log('WebSocket connected to exchanges:', Object.keys(isConnected).filter(ex => isConnected[ex]).join(', '));
+      toast({
+        title: "WebSocket Connected",
+        description: `Connected to ${Object.keys(isConnected).filter(ex => isConnected[ex]).length} exchanges for real-time data.`,
+      });
+    }
+  }, [isConnected, wsError]);
 
   const handleExport = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(opportunities));
