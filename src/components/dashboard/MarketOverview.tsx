@@ -19,22 +19,6 @@ const MarketOverview = () => {
   const coinPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'];
   const exchanges = ['binance']; // Use Binance as the reference exchange for market data
   
-  // Get real-time WebSocket data
-  const wsResults = useMemo(() => {
-    const results: Array<{ pair: string, socketHook: any }> = [];
-    
-    for (const pair of coinPairs) {
-      const socketHook = useMultiTickerWebSocket(
-        exchanges, 
-        pair,
-        true
-      );
-      results.push({ pair, socketHook });
-    }
-    
-    return results;
-  }, []);
-  
   // Use React Query for fallback market data
   const { 
     data: apiMarketData = [], 
@@ -51,6 +35,22 @@ const MarketOverview = () => {
     retry: 3,
     refetchOnWindowFocus: true,
   });
+  
+  // Get real-time WebSocket data
+  const wsResults = useMemo(() => {
+    const results: Array<{ pair: string, socketHook: any }> = [];
+    
+    for (const pair of coinPairs) {
+      const socketHook = useMultiTickerWebSocket(
+        exchanges, 
+        pair,
+        true
+      );
+      results.push({ pair, socketHook });
+    }
+    
+    return results;
+  }, [coinPairs, exchanges]);
   
   // Process WebSocket data into market data when available
   const wsMarketData = useMemo(() => {

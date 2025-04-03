@@ -17,18 +17,6 @@ interface ExchangeVolumeData {
 const COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ef4444'];
 
 const ExchangeVolume = () => {
-  // Use WebSocket to get real-time ticker data from multiple exchanges
-  const exchangeIds = ['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io'];
-  const {
-    data: wsData,
-    isConnected,
-    error: wsError
-  } = useMultiTickerWebSocket(
-    exchangeIds,
-    'BTC/USDT', // Use a high-volume pair as reference
-    true // Enable WebSocket
-  );
-  
   // Use React Query for fallback data fetching with caching and automatic refetching
   const { 
     data: apiVolumeData = [], 
@@ -45,6 +33,18 @@ const ExchangeVolume = () => {
     retry: 3,
     refetchOnWindowFocus: true,
   });
+  
+  // Use WebSocket to get real-time ticker data from multiple exchanges
+  const exchangeIds = ['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io'];
+  const {
+    data: wsData,
+    isConnected,
+    error: wsError
+  } = useMultiTickerWebSocket(
+    exchangeIds,
+    'BTC/USDT', // Use a high-volume pair as reference
+    true // Enable WebSocket
+  );
   
   // Process WebSocket data into volume data when available
   const wsVolumeData = useMemo(() => {
@@ -79,7 +79,7 @@ const ExchangeVolume = () => {
     return apiVolumeData;
   }, [wsVolumeData, apiVolumeData]);
   
-  const isLoading = (!volumeData || volumeData.length === 0) && (isApiLoading || Object.keys(isConnected || {}).some(k => isConnected[k] === false));
+  const isLoading = (!volumeData || volumeData.length === 0) && (isApiLoading || (isConnected && Object.keys(isConnected).some(k => isConnected[k] === false)));
   
   const formatVolumeData = (data: ExchangeVolumeData[]) => {
     return data.map((item) => ({
