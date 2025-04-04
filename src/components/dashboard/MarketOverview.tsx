@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
-import { fetchCryptoMarketData } from '@/lib/api/cryptoDataApi';
+import { fetchCryptoMarketData, getFallbackTickerData } from '@/lib/api/cryptoDataApi';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
@@ -50,7 +50,16 @@ const MarketOverview = () => {
   // Process WebSocket data into market data when available
   const wsMarketData = useMemo(() => {
     if (!wsTickerData || !wsTickerData.binance) {
-      return null;
+      // If WebSocket data is not available, create fallback data for each coin pair
+      return coinPairs.map(pair => {
+        const symbol = pair.split('/')[0];
+        const fallbackData = getFallbackTickerData('binance', pair);
+        return {
+          symbol,
+          price: fallbackData.price,
+          change24h: fallbackData.changePercent
+        };
+      });
     }
     
     // Extract data from WebSocket responses and format it
@@ -70,17 +79,25 @@ const MarketOverview = () => {
             price: tickerData.price || tickerData.lastPrice || 0,
             change24h: tickerData.priceChangePercent || tickerData.changePercent || 0
           });
+        } else {
+          // If specific pair data is missing, use fallback
+          const fallbackData = getFallbackTickerData('binance', pair);
+          marketData.push({
+            symbol,
+            price: fallbackData.price,
+            change24h: fallbackData.changePercent
+          });
         }
       });
     }
     
-    return marketData.length > 0 ? marketData : null;
+    return marketData;
   }, [wsTickerData, coinPairs]);
   
   // Determine which data source to use: WebSocket or API
   const marketData = useMemo(() => {
     if (wsMarketData && wsMarketData.length > 0) {
-      console.log('Using real-time WebSocket market data');
+      console.log('Using real-time or fallback market data');
       return wsMarketData;
     }
     

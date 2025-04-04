@@ -202,7 +202,7 @@ const ExchangeVolume = () => {
                 />
                 <Legend 
                   formatter={(value, entry, index) => {
-                    const item = entry && (entry.payload as unknown as { logo?: string } | undefined);
+                    const item = entry && (entry.payload as unknown as CustomLegendPayload);
                     const logoPath = item?.logo;
                     return (
                       <span className="flex items-center gap-1">
