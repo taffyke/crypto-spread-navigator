@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { RefreshCw } from 'lucide-react';
@@ -15,10 +15,22 @@ interface ExchangeVolumeData {
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ef4444'];
+const EXCHANGE_LOGOS: Record<string, string> = {
+  binance: '/exchange-logos/binance.svg',
+  coinbase: '/exchange-logos/coinbase.svg',
+  kucoin: '/exchange-logos/kucoin.svg',
+  kraken: '/exchange-logos/kraken.svg',
+  gate_io: '/exchange-logos/gate.svg',
+};
 
 const ExchangeVolume = () => {
-  // Define exchange IDs outside of hooks
+  // Define exchange IDs for both API and WebSocket
   const exchangeIds = ['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io'];
+  
+  // Handle refresh function to be passed to useQuery
+  const handleRefetch = useCallback(async ({ signal }: { signal?: AbortSignal } = {}) => {
+    return await fetchExchangeVolumeData(signal);
+  }, []);
   
   // Use React Query for fallback data fetching with caching and automatic refetching
   const { 
@@ -28,9 +40,7 @@ const ExchangeVolume = () => {
     isFetching
   } = useQuery({
     queryKey: ['exchangeVolumeData'],
-    queryFn: async ({ signal }) => {
-      return await fetchExchangeVolumeData(signal);
-    },
+    queryFn: handleRefetch,
     refetchInterval: 60000, // Refresh every 1 minute
     staleTime: 30000, // Consider data stale after 30 seconds
     retry: 3,
@@ -51,34 +61,37 @@ const ExchangeVolume = () => {
   // Process WebSocket data into volume data when available
   const wsVolumeData = useMemo(() => {
     if (!wsData || Object.keys(wsData).length === 0) {
-      return null;
+      return [];
     }
     
-    return Object.entries(wsData).map(([exchange, data]) => {
-      // Extract volume from WebSocket data or provide fallback
-      const tickerData = data as any;
-      const volume = tickerData?.volume24h || tickerData?.volume || 0;
-      
-      // Adjust volume to realistic levels if it's too small
-      // (WebSocket might only provide recent volume, not 24h)
-      const adjustedVolume = volume < 10000 ? volume * 10000 : volume;
-      
-      return {
-        exchange: exchange.charAt(0).toUpperCase() + exchange.slice(1),
-        volume24h: adjustedVolume
-      };
-    }).filter(item => item.volume24h > 0);
+    return Object.entries(wsData)
+      .filter(([, data]) => data !== undefined && data !== null)
+      .map(([exchange, data]) => {
+        // Extract volume from WebSocket data or provide fallback
+        const tickerData = data as any;
+        const volume = tickerData?.volume24h || tickerData?.volume || 0;
+        
+        // Adjust volume to realistic levels if it's too small
+        // (WebSocket might only provide recent volume, not 24h)
+        const adjustedVolume = volume < 10000 ? volume * 10000 : volume;
+        
+        return {
+          exchange: exchange.charAt(0).toUpperCase() + exchange.slice(1),
+          volume24h: adjustedVolume
+        };
+      })
+      .filter(item => item.volume24h > 0);
   }, [wsData]);
   
   // Determine which data source to use: WebSocket or API
   const volumeData = useMemo(() => {
-    if (wsVolumeData && wsVolumeData.length > 0) {
+    if (wsVolumeData && wsVolumeData.length > 1) {
       console.log('Using real-time WebSocket volume data');
       return wsVolumeData;
     }
     
     console.log('Using API volume data');
-    return apiVolumeData;
+    return apiVolumeData || [];
   }, [wsVolumeData, apiVolumeData]);
   
   // Calculate loading state based on data availability and connection status
@@ -100,12 +113,13 @@ const ExchangeVolume = () => {
     return true;
   }, [volumeData, isApiLoading, isConnected]);
   
-  const formatVolumeData = (data: ExchangeVolumeData[]) => {
+  const formatVolumeData = useCallback((data: ExchangeVolumeData[]) => {
     return data.map((item) => ({
       name: item.exchange,
       value: item.volume24h,
+      logo: EXCHANGE_LOGOS[item.exchange.toLowerCase()] || null
     }));
-  };
+  }, []);
   
   const handleRefresh = () => {
     refetch();
@@ -114,6 +128,27 @@ const ExchangeVolume = () => {
       description: "Fetching latest exchange volume information."
     });
   };
+  
+  // Custom renderer for pie chart labels with logos
+  const renderCustomizedLabel = useCallback(({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }: any) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    
+    return (
+      <text 
+        x={x} 
+        y={y} 
+        fill="#fff" 
+        textAnchor={x > cx ? 'start' : 'end'} 
+        dominantBaseline="central"
+        fontSize={12}
+      >
+        {`${name} ${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
+  }, []);
   
   return (
     <Card className="bg-slate-800 border-slate-700 text-white">
@@ -147,8 +182,8 @@ const ExchangeVolume = () => {
                   fill="#8884d8"
                   paddingAngle={2}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   labelLine={false}
+                  label={renderCustomizedLabel}
                 >
                   {formatVolumeData(volumeData).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -159,9 +194,17 @@ const ExchangeVolume = () => {
                   contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: 'white' }}
                 />
                 <Legend 
-                  formatter={(value, entry, index) => (
-                    <span style={{ color: '#e2e8f0' }}>{value}</span>
-                  )}
+                  formatter={(value, entry, index) => {
+                    const logoPath = entry?.payload?.logo;
+                    return (
+                      <span className="flex items-center gap-1">
+                        {logoPath && (
+                          <img src={logoPath} alt={value} className="w-4 h-4 inline-block" />
+                        )}
+                        <span style={{ color: '#e2e8f0' }}>{value}</span>
+                      </span>
+                    );
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>

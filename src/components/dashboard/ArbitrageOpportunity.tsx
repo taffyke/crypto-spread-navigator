@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ExternalLink, TrendingUp, AlertTriangle, BarChart2 } from 'lucide-react';
+import { ExternalLink, TrendingUp, BarChart2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -66,6 +66,9 @@ const ArbitrageOpportunity = ({
     return `${Math.floor(diffSec / 3600)}h ago`;
   };
 
+  // Parse pair into base and quote currencies
+  const [baseCurrency, quoteCurrency] = pair.split('/');
+
   // Handle clicking details button
   const handleViewDetails = () => {
     toast({
@@ -83,7 +86,8 @@ const ArbitrageOpportunity = ({
       description: `Opening ${pair} price charts for ${buyExchange} and ${sellExchange}`,
       variant: "default",
     });
-    navigate(`/charts/${pair}?buy=${buyExchange}&sell=${sellExchange}`);
+    // Ensure proper URL encoding and pass exchange parameters correctly
+    navigate(`/charts/${pair}?buy=${buyExchange.toLowerCase()}&sell=${sellExchange.toLowerCase()}`);
   };
 
   // Handle clicking execute button
@@ -125,7 +129,17 @@ const ArbitrageOpportunity = ({
             spreadPercentage >= 3 ? "text-green-500" : 
             spreadPercentage >= 1 ? "text-yellow-500" : "text-slate-400"
           )} />
-          <h3 className="font-bold text-white">{pair}</h3>
+          <div className="flex items-center">
+            <img 
+              src={`/crypto-icons/${baseCurrency.toLowerCase()}.svg`}
+              alt={baseCurrency}
+              className="w-5 h-5 mr-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/crypto-icons/generic.svg';
+              }}
+            />
+            <span className="font-bold text-white">{pair}</span>
+          </div>
           {isLive && (
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -148,11 +162,31 @@ const ArbitrageOpportunity = ({
       
       <div className="grid grid-cols-2 gap-4 mb-3">
         <div className="bg-slate-900 rounded-md p-2">
-          <p className="text-xs text-slate-400 mb-1">Buy at {buyExchange}</p>
+          <div className="flex items-center text-xs text-slate-400 mb-1">
+            <img 
+              src={`/exchange-logos/${buyExchange.toLowerCase()}.svg`}
+              alt={buyExchange}
+              className="w-4 h-4 mr-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <p>Buy at {buyExchange}</p>
+          </div>
           <p className="text-sm font-medium text-white">{formatCurrency(buyPrice)}</p>
         </div>
         <div className="bg-slate-900 rounded-md p-2">
-          <p className="text-xs text-slate-400 mb-1">Sell at {sellExchange}</p>
+          <div className="flex items-center text-xs text-slate-400 mb-1">
+            <img 
+              src={`/exchange-logos/${sellExchange.toLowerCase()}.svg`}
+              alt={sellExchange}
+              className="w-4 h-4 mr-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <p>Sell at {sellExchange}</p>
+          </div>
           <p className="text-sm font-medium text-white">{formatCurrency(sellPrice)}</p>
         </div>
       </div>
@@ -175,7 +209,7 @@ const ArbitrageOpportunity = ({
             effectiveRiskLevel === 'low' ? "text-green-500" : 
             effectiveRiskLevel === 'medium' ? "text-yellow-500" : "text-red-500"
           )}>
-            {effectiveRiskLevel.charAt(0).toUpperCase() + effectiveRiskLevel.slice(1)}
+            {getRiskLevelText()}
           </p>
         </div>
         <div>

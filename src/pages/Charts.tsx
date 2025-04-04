@@ -1,9 +1,8 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, BarChart2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BarChart2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
 import { 
   LineChart, 
@@ -22,30 +21,67 @@ function useQuery() {
   return new URLSearchParams(useLocation().search);
 }
 
+// Helper function to clean exchange IDs
+function cleanExchangeId(exchangeName: string): string {
+  return exchangeName.toLowerCase().replace(/\s/g, '').replace(/_/g, '');
+}
+
 const Charts = () => {
-  const { pair } = useParams<{ pair: string }>();
+  const { pair = 'BTC/USDT' } = useParams<{ pair: string }>();
   const queryParams = useQuery();
   const navigate = useNavigate();
   
-  const buyExchange = queryParams.get('buy') || 'Binance';
-  const sellExchange = queryParams.get('sell') || 'Coinbase';
-  const pairToUse = pair || 'BTC/USDT';
+  // Get exchange names from URL parameters, default to Binance and Coinbase if not specified
+  const buyExchange = queryParams.get('buy') || 'binance';
+  const sellExchange = queryParams.get('sell') || 'coinbase';
+  
+  // Format pair properly
+  const formattedPair = useMemo(() => {
+    // Handle cases where pair might be formatted incorrectly (e.g., ADA-USDT instead of ADA/USDT)
+    if (pair && !pair.includes('/')) {
+      // Try to identify the separator or add one if needed
+      if (pair.includes('-')) {
+        const [base, quote] = pair.split('-');
+        return `${base}/${quote}`;
+      }
+      // This is a basic assumption, better handling would check common quote currencies
+      if (['USDT', 'USD', 'USDC', 'BTC', 'ETH'].some(quote => pair.endsWith(quote))) {
+        // For pairs like ADAUSDT, try to split at common quote currency
+        for (const quote of ['USDT', 'USD', 'USDC', 'BTC', 'ETH']) {
+          if (pair.endsWith(quote)) {
+            const base = pair.slice(0, pair.length - quote.length);
+            return `${base}/${quote}`;
+          }
+        }
+      }
+    }
+    return pair;
+  }, [pair]);
   
   const [priceHistory, setPriceHistory] = useState<{ timestamp: number; buyPrice: number; sellPrice: number; spread: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Normalize exchanges for WebSocket connection (lowercase & remove spaces)
-  const normalizedBuyExchange = buyExchange.toLowerCase().replace(/\s/g, '');
-  const normalizedSellExchange = sellExchange.toLowerCase().replace(/\s/g, '');
+  const normalizedBuyExchange = useMemo(() => cleanExchangeId(buyExchange), [buyExchange]);
+  const normalizedSellExchange = useMemo(() => cleanExchangeId(sellExchange), [sellExchange]);
+  
+  // Extract baseCurrency and quoteCurrency for icons
+  const [baseCurrency, quoteCurrency] = useMemo(() => {
+    const parts = formattedPair.split('/');
+    return [parts[0] || 'BTC', parts[1] || 'USDT'];
+  }, [formattedPair]);
   
   // Use the WebSocket hook to get real-time ticker data
   const { 
     data: tickerData,
     isConnected,
+    error: wsError,
     reconnect 
   } = useMultiTickerWebSocket(
     [normalizedBuyExchange, normalizedSellExchange],
-    pairToUse,
+    formattedPair,
     true // Explicitly enable WebSocket
   );
   
@@ -58,30 +94,37 @@ const Charts = () => {
       const sellTickerData = tickerData[normalizedSellExchange];
       
       if (buyTickerData && sellTickerData) {
-        // Safely extract price data with fallbacks
-        const buyPrice = parseFloat(buyTickerData.last || buyTickerData.price || '0');
-        const sellPrice = parseFloat(sellTickerData.last || sellTickerData.price || '0');
-        
-        console.log(`Buy price (${normalizedBuyExchange}): ${buyPrice}, Sell price (${normalizedSellExchange}): ${sellPrice}`);
-        
-        if (buyPrice > 0 && sellPrice > 0) {
-          const spread = ((sellPrice - buyPrice) / buyPrice) * 100;
+        try {
+          // Safely extract price data with fallbacks
+          const buyPrice = parseFloat(buyTickerData.last || buyTickerData.price || buyTickerData.close || '0');
+          const sellPrice = parseFloat(sellTickerData.last || sellTickerData.price || sellTickerData.close || '0');
           
-          setPriceHistory(prev => {
-            // Add new data point
-            const newDataPoint = {
-              timestamp: Date.now(),
-              buyPrice,
-              sellPrice,
-              spread
-            };
+          console.log(`Buy price (${normalizedBuyExchange}): ${buyPrice}, Sell price (${normalizedSellExchange}): ${sellPrice}`);
+          
+          if (buyPrice > 0 && sellPrice > 0) {
+            const spread = ((sellPrice - buyPrice) / buyPrice) * 100;
             
-            // Keep only the most recent 100 data points
-            const updatedHistory = [...prev, newDataPoint].slice(-100);
-            return updatedHistory;
-          });
-          
-          setIsLoading(false);
+            setPriceHistory(prev => {
+              // Add new data point
+              const newDataPoint = {
+                timestamp: Date.now(),
+                buyPrice,
+                sellPrice,
+                spread
+              };
+              
+              // Keep only the most recent 100 data points
+              const updatedHistory = [...prev, newDataPoint].slice(-100);
+              return updatedHistory;
+            });
+            
+            setLastUpdated(new Date());
+            setIsLoading(false);
+            setErrorMessage(null);
+          }
+        } catch (error) {
+          console.error('Error processing ticker data:', error);
+          setErrorMessage('Error processing price data');
         }
       }
     }
@@ -89,47 +132,59 @@ const Charts = () => {
   
   // If we don't have real data yet and the connection is established, add simulated data
   useEffect(() => {
-    if (priceHistory.length === 0 && isConnected) {
-      // Only simulate data if we're connected but don't have real data yet
-      const connectedExchanges = Object.entries(isConnected)
-        .filter(([_, status]) => status)
-        .map(([exchange]) => exchange);
-      
-      if (connectedExchanges.length > 0 && isLoading) {
+    if (priceHistory.length === 0 && (isConnected || wsError)) {
+      // Show toast for WebSocket error or simulated data
+      if (wsError) {
+        console.log('WebSocket error, using simulated data', wsError);
+        toast({
+          title: "WebSocket Connection Issue",
+          description: "Using simulated data instead of real-time prices.",
+          variant: "destructive"
+        });
+        setErrorMessage('WebSocket connection failed. Using simulated data.');
+      } else if (priceHistory.length === 0) {
         console.log('Generating simulated price data for visualization');
-        
-        // Generate simulated price data for visualization purposes
-        const simulatedHistory = [];
-        const basePrice = 30000 + Math.random() * 2000; // For BTC
-        
-        for (let i = 0; i < 20; i++) {
-          const timestamp = Date.now() - (20 - i) * 30000; // Last 10 minutes
-          const randomFluctuation1 = (Math.random() - 0.5) * 200;
-          const randomFluctuation2 = (Math.random() - 0.5) * 200;
-          
-          const buyPrice = basePrice + randomFluctuation1;
-          const sellPrice = basePrice + randomFluctuation2 + 100; // Slightly higher on average
-          const spread = ((sellPrice - buyPrice) / buyPrice) * 100;
-          
-          simulatedHistory.push({
-            timestamp,
-            buyPrice,
-            sellPrice,
-            spread
-          });
-        }
-        
-        setPriceHistory(simulatedHistory);
-        setIsLoading(false);
-        
         toast({
           title: "Using Simulated Data",
           description: "Real-time data unavailable. Using simulated data for preview.",
           variant: "default"
         });
       }
+
+      // Generate simulated price data for visualization purposes
+      const simulatedHistory = [];
+      // Base price varies by currency pair
+      let basePrice = 100; // Default
+      if (formattedPair.startsWith('BTC')) {
+        basePrice = 30000 + Math.random() * 2000;
+      } else if (formattedPair.startsWith('ETH')) {
+        basePrice = 2000 + Math.random() * 100;
+      } else if (formattedPair.startsWith('ADA')) {
+        basePrice = 0.5 + Math.random() * 0.1;
+      }
+      
+      for (let i = 0; i < 20; i++) {
+        const timestamp = Date.now() - (20 - i) * 30000; // Last 10 minutes
+        const randomFluctuation1 = (Math.random() - 0.5) * (basePrice * 0.01); // 1% fluctuation
+        const randomFluctuation2 = (Math.random() - 0.5) * (basePrice * 0.01) + (basePrice * 0.003); // Slight bias
+        
+        const buyPrice = basePrice + randomFluctuation1;
+        const sellPrice = basePrice + randomFluctuation2;
+        const spread = ((sellPrice - buyPrice) / buyPrice) * 100;
+        
+        simulatedHistory.push({
+          timestamp,
+          buyPrice,
+          sellPrice,
+          spread
+        });
+      }
+      
+      setPriceHistory(simulatedHistory);
+      setLastUpdated(new Date());
+      setIsLoading(false);
     }
-  }, [isConnected, priceHistory.length, isLoading]);
+  }, [isConnected, wsError, priceHistory.length, formattedPair]);
   
   // Format prices for display
   const formatPrice = (price: number) => {
@@ -146,6 +201,7 @@ const Charts = () => {
   // Handle manual refresh
   const handleRefresh = () => {
     reconnect();
+    setErrorMessage(null);
     toast({
       title: "Refreshing Chart Data",
       description: "Reconnecting to WebSocket feeds..."
@@ -176,10 +232,26 @@ const Charts = () => {
           <p className="text-white text-sm mb-1">
             {new Date(payload[0].payload.timestamp).toLocaleTimeString()}
           </p>
-          <p className="text-blue-400 text-xs">
+          <p className="text-blue-400 text-xs flex items-center">
+            <img 
+              src={`/exchange-logos/${normalizedBuyExchange}.svg`}
+              alt={buyExchange}
+              className="w-3 h-3 mr-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
             {buyExchange}: {formatPrice(payload[0].payload.buyPrice)}
           </p>
-          <p className="text-green-400 text-xs">
+          <p className="text-green-400 text-xs flex items-center">
+            <img 
+              src={`/exchange-logos/${normalizedSellExchange}.svg`}
+              alt={sellExchange}
+              className="w-3 h-3 mr-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
             {sellExchange}: {formatPrice(payload[0].payload.sellPrice)}
           </p>
           <p className="text-yellow-400 text-xs">
@@ -201,12 +273,60 @@ const Charts = () => {
           >
             <ArrowLeft className="h-5 w-5 text-slate-400" />
           </button>
-          <h1 className="text-xl md:text-2xl font-bold text-white">{pairToUse} Price Charts</h1>
+          <div className="flex items-center">
+            <img 
+              src={`/crypto-icons/${baseCurrency.toLowerCase()}.svg`}
+              alt={baseCurrency}
+              className="h-6 w-6 mr-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/crypto-icons/generic.svg';
+              }}
+            />
+            <h1 className="text-xl md:text-2xl font-bold text-white mr-1">{formattedPair}</h1>
+            <img 
+              src={`/crypto-icons/${quoteCurrency.toLowerCase()}.svg`}
+              alt={quoteCurrency}
+              className="h-5 w-5 opacity-75"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/crypto-icons/generic.svg';
+              }}
+            />
+          </div>
         </div>
-        <p className="text-sm md:text-base text-slate-400">
-          Compare real-time prices between {buyExchange} and {sellExchange}
+        <p className="text-sm md:text-base text-slate-400 flex items-center">
+          Compare real-time prices between 
+          <span className="inline-flex items-center mx-1">
+            <img 
+              src={`/exchange-logos/${normalizedBuyExchange}.svg`}
+              alt={buyExchange}
+              className="h-4 w-4 mr-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            {buyExchange}
+          </span> 
+          and 
+          <span className="inline-flex items-center mx-1">
+            <img 
+              src={`/exchange-logos/${normalizedSellExchange}.svg`}
+              alt={sellExchange}
+              className="h-4 w-4 mr-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            {sellExchange}
+          </span>
         </p>
       </div>
+      
+      {errorMessage && (
+        <div className="mb-4 bg-red-900/30 border border-red-700 rounded-md p-3 flex items-center">
+          <AlertTriangle className="h-5 w-5 text-red-400 mr-2" />
+          <p className="text-red-200 text-sm">{errorMessage}</p>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2">
@@ -215,15 +335,22 @@ const Charts = () => {
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <BarChart2 className="h-5 w-5 text-blue-400" />
-                  <CardTitle>{pairToUse} Price Comparison</CardTitle>
+                  <CardTitle>{formattedPair} Price Comparison</CardTitle>
                 </div>
-                <button 
-                  onClick={handleRefresh}
-                  disabled={isLoading}
-                  className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex items-center">
+                  {lastUpdated && (
+                    <span className="text-xs text-slate-400 mr-4">
+                      Last update: {lastUpdated.toLocaleTimeString()}
+                    </span>
+                  )}
+                  <button 
+                    onClick={handleRefresh}
+                    disabled={isLoading}
+                    className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -282,7 +409,15 @@ const Charts = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-slate-900 p-3 rounded-lg">
-                <div className="text-sm text-slate-400 mb-1">
+                <div className="text-sm text-slate-400 mb-1 flex items-center">
+                  <img 
+                    src={`/exchange-logos/${normalizedBuyExchange}.svg`}
+                    alt={buyExchange}
+                    className="h-4 w-4 mr-1"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
                   {buyExchange}
                 </div>
                 <div className="text-lg font-bold text-white">
@@ -291,7 +426,15 @@ const Charts = () => {
               </div>
               
               <div className="bg-slate-900 p-3 rounded-lg">
-                <div className="text-sm text-slate-400 mb-1">
+                <div className="text-sm text-slate-400 mb-1 flex items-center">
+                  <img 
+                    src={`/exchange-logos/${normalizedSellExchange}.svg`}
+                    alt={sellExchange}
+                    className="h-4 w-4 mr-1"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
                   {sellExchange}
                 </div>
                 <div className="text-lg font-bold text-white">
@@ -334,8 +477,10 @@ const Charts = () => {
                   WebSocket Status
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}></div>
-                  <span className="text-sm">{isConnected ? "Connected" : "Disconnected"}</span>
+                  <div className={`h-2 w-2 rounded-full ${errorMessage ? "bg-red-500" : (wsError ? "bg-yellow-500" : "bg-green-500")}`}></div>
+                  <span className="text-sm">
+                    {errorMessage ? "Error" : (wsError ? "Using Fallback Data" : "Connected")}
+                  </span>
                 </div>
               </div>
             </CardContent>

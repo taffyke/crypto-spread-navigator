@@ -3,13 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { Calculator } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from '@/hooks/use-toast';
+import { Badge } from "@/components/ui/badge";
 
 interface ArbitrageRiskCalculatorProps {
   className?: string;
+  arbitrageType?: 'direct' | 'triangular' | 'futures';
 }
 
-const ArbitrageRiskCalculator = ({ className }: ArbitrageRiskCalculatorProps) => {
-  const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
+const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct' }: ArbitrageRiskCalculatorProps) => {
+  const [investmentAmount, setInvestmentAmount] = useState<number>(100);
   const [spreadPercentage, setSpreadPercentage] = useState<number>(2.5);
   const [slippagePercentage, setSlippagePercentage] = useState<number>(0.5);
   const [exchangeFee1, setExchangeFee1] = useState<number>(0.1);
@@ -19,10 +21,19 @@ const ArbitrageRiskCalculator = ({ className }: ArbitrageRiskCalculatorProps) =>
   const [riskRatio, setRiskRatio] = useState<number>(0);
   const [profitability, setProfitability] = useState<string>('Calculating...');
 
+  // Adjust factors based on arbitrage type
+  const getArbitrageTypeFactor = () => {
+    switch(arbitrageType) {
+      case 'triangular': return 0.85; // Triangular has slightly less profit due to more trades
+      case 'futures': return 1.2; // Futures can have higher profit but higher risk
+      default: return 1.0; // Direct/standard arbitrage
+    }
+  };
+
   // Calculate potential profit and risk metrics
   useEffect(() => {
     // Calculate gross profit before fees
-    const grossProfit = investmentAmount * (spreadPercentage / 100);
+    const grossProfit = investmentAmount * (spreadPercentage / 100) * getArbitrageTypeFactor();
     
     // Calculate exchange fees
     const exchangeFee1Amount = investmentAmount * (exchangeFee1 / 100);
@@ -52,7 +63,7 @@ const ArbitrageRiskCalculator = ({ className }: ArbitrageRiskCalculatorProps) =>
     } else {
       setProfitability('Low Risk');
     }
-  }, [investmentAmount, spreadPercentage, slippagePercentage, exchangeFee1, exchangeFee2, networkFee]);
+  }, [investmentAmount, spreadPercentage, slippagePercentage, exchangeFee1, exchangeFee2, networkFee, arbitrageType]);
 
   // Format currency amounts
   const formatCurrency = (value: number) => {
@@ -71,12 +82,26 @@ const ArbitrageRiskCalculator = ({ className }: ArbitrageRiskCalculatorProps) =>
     });
   };
 
+  // Get badge color for arbitrage type
+  const getArbitrageTypeBadgeColor = () => {
+    switch(arbitrageType) {
+      case 'triangular': return "bg-purple-600 hover:bg-purple-500";
+      case 'futures': return "bg-amber-600 hover:bg-amber-500";
+      default: return "bg-blue-600 hover:bg-blue-500";
+    }
+  };
+
   return (
     <Card className={`bg-slate-800 border-slate-700 text-white ${className}`}>
       <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Calculator className="h-5 w-5 text-blue-400" />
-          <CardTitle className="text-sm md:text-base">Arbitrage Risk Calculator</CardTitle>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calculator className="h-5 w-5 text-blue-400" />
+            <CardTitle className="text-sm md:text-base">Arbitrage Risk Calculator</CardTitle>
+          </div>
+          <Badge className={getArbitrageTypeBadgeColor()}>
+            {arbitrageType.charAt(0).toUpperCase() + arbitrageType.slice(1)}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -88,9 +113,9 @@ const ArbitrageRiskCalculator = ({ className }: ArbitrageRiskCalculatorProps) =>
             </label>
             <input 
               type="range" 
-              min="100" 
+              min="1" 
               max="10000" 
-              step="100" 
+              step="1" 
               value={investmentAmount}
               onChange={(e) => setInvestmentAmount(parseFloat(e.target.value))}
               className="w-full accent-blue-500"
