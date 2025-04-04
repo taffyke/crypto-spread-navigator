@@ -5,6 +5,7 @@ import ExchangeSelector from '@/components/dashboard/ExchangeSelector';
 import ArbitrageTable from '@/components/scanner/ArbitrageTable';
 import { ArbitrageOpportunity as ArbitrageTableOpportunity } from '@/components/scanner/ArbitrageTable';
 import NetworkRecommendations from '@/components/scanner/NetworkRecommendations';
+import ArbitrageRiskCalculator from '@/components/scanner/ArbitrageRiskCalculator';
 import { exchanges } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
@@ -293,6 +294,9 @@ const Scanner = () => {
           </div>
           
           <div className="lg:col-span-1 space-y-4">
+            {/* Add Risk Calculator */}
+            <ArbitrageRiskCalculator />
+            
             <NetworkRecommendations />
             
             <div className={`bg-slate-800 border ${isFiltersOpen ? 'border-blue-500' : 'border-slate-700'} rounded-lg p-3 md:p-4`}>

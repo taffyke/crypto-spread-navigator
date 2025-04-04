@@ -107,6 +107,12 @@ const ArbitrageOpportunity = ({
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
+  // Calculate risk level dynamically if not provided
+  const effectiveRiskLevel = riskLevel || (
+    spreadPercentage >= 3 ? 'low' : 
+    spreadPercentage >= 1.5 ? 'medium' : 'high'
+  );
+
   return (
     <div className={cn(
       "bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-blue-500 transition-all",
@@ -166,10 +172,10 @@ const ArbitrageOpportunity = ({
           <p className="text-xs text-slate-400">Risk Level</p>
           <p className={cn(
             "text-sm font-bold",
-            riskLevel === 'low' ? "text-green-500" : 
-            riskLevel === 'medium' ? "text-yellow-500" : "text-red-500"
+            effectiveRiskLevel === 'low' ? "text-green-500" : 
+            effectiveRiskLevel === 'medium' ? "text-yellow-500" : "text-red-500"
           )}>
-            {getRiskLevelText()}
+            {effectiveRiskLevel.charAt(0).toUpperCase() + effectiveRiskLevel.slice(1)}
           </p>
         </div>
         <div>

@@ -17,8 +17,10 @@ interface ExchangeVolumeData {
 const COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ef4444'];
 
 const ExchangeVolume = () => {
+  // Define exchange IDs outside of hooks
+  const exchangeIds = ['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io'];
+  
   // Use React Query for fallback data fetching with caching and automatic refetching
-  // Place this hook before any custom hooks
   const { 
     data: apiVolumeData = [], 
     isLoading: isApiLoading, 
@@ -34,9 +36,6 @@ const ExchangeVolume = () => {
     retry: 3,
     refetchOnWindowFocus: true,
   });
-  
-  // Define exchange IDs outside of hooks
-  const exchangeIds = ['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io'];
   
   // Use WebSocket to get real-time ticker data from multiple exchanges
   const {
@@ -82,8 +81,24 @@ const ExchangeVolume = () => {
     return apiVolumeData;
   }, [wsVolumeData, apiVolumeData]);
   
-  // Make sure isConnected exists before trying to access properties
-  const isLoading = (!volumeData || volumeData.length === 0) && (isApiLoading || (isConnected && Object.keys(isConnected).some(k => isConnected[k] === false)));
+  // Calculate loading state based on data availability and connection status
+  const isLoading = useMemo(() => {
+    if (volumeData && volumeData.length > 0) {
+      return false;
+    }
+    
+    // Check if API is loading
+    if (isApiLoading) {
+      return true;
+    }
+    
+    // Check WebSocket connection status if available
+    if (isConnected) {
+      return Object.values(isConnected).some(status => status === false);
+    }
+    
+    return true;
+  }, [volumeData, isApiLoading, isConnected]);
   
   const formatVolumeData = (data: ExchangeVolumeData[]) => {
     return data.map((item) => ({
@@ -119,7 +134,7 @@ const ExchangeVolume = () => {
           <div className="h-[250px] flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
           </div>
-        ) : volumeData.length > 0 ? (
+        ) : volumeData && volumeData.length > 0 ? (
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>

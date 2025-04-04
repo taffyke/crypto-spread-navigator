@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,12 +45,15 @@ const Charts = () => {
     reconnect 
   } = useMultiTickerWebSocket(
     [normalizedBuyExchange, normalizedSellExchange],
-    pairToUse
+    pairToUse,
+    true // Explicitly enable WebSocket
   );
   
   // Add new price data points when ticker data changes
   useEffect(() => {
     if (tickerData && Object.keys(tickerData).length > 0) {
+      console.log('Received ticker data:', tickerData);
+      
       const buyTickerData = tickerData[normalizedBuyExchange];
       const sellTickerData = tickerData[normalizedSellExchange];
       
@@ -57,6 +61,8 @@ const Charts = () => {
         // Safely extract price data with fallbacks
         const buyPrice = parseFloat(buyTickerData.last || buyTickerData.price || '0');
         const sellPrice = parseFloat(sellTickerData.last || sellTickerData.price || '0');
+        
+        console.log(`Buy price (${normalizedBuyExchange}): ${buyPrice}, Sell price (${normalizedSellExchange}): ${sellPrice}`);
         
         if (buyPrice > 0 && sellPrice > 0) {
           const spread = ((sellPrice - buyPrice) / buyPrice) * 100;
@@ -80,6 +86,50 @@ const Charts = () => {
       }
     }
   }, [tickerData, normalizedBuyExchange, normalizedSellExchange]);
+  
+  // If we don't have real data yet and the connection is established, add simulated data
+  useEffect(() => {
+    if (priceHistory.length === 0 && isConnected) {
+      // Only simulate data if we're connected but don't have real data yet
+      const connectedExchanges = Object.entries(isConnected)
+        .filter(([_, status]) => status)
+        .map(([exchange]) => exchange);
+      
+      if (connectedExchanges.length > 0 && isLoading) {
+        console.log('Generating simulated price data for visualization');
+        
+        // Generate simulated price data for visualization purposes
+        const simulatedHistory = [];
+        const basePrice = 30000 + Math.random() * 2000; // For BTC
+        
+        for (let i = 0; i < 20; i++) {
+          const timestamp = Date.now() - (20 - i) * 30000; // Last 10 minutes
+          const randomFluctuation1 = (Math.random() - 0.5) * 200;
+          const randomFluctuation2 = (Math.random() - 0.5) * 200;
+          
+          const buyPrice = basePrice + randomFluctuation1;
+          const sellPrice = basePrice + randomFluctuation2 + 100; // Slightly higher on average
+          const spread = ((sellPrice - buyPrice) / buyPrice) * 100;
+          
+          simulatedHistory.push({
+            timestamp,
+            buyPrice,
+            sellPrice,
+            spread
+          });
+        }
+        
+        setPriceHistory(simulatedHistory);
+        setIsLoading(false);
+        
+        toast({
+          title: "Using Simulated Data",
+          description: "Real-time data unavailable. Using simulated data for preview.",
+          variant: "default"
+        });
+      }
+    }
+  }, [isConnected, priceHistory.length, isLoading]);
   
   // Format prices for display
   const formatPrice = (price: number) => {
@@ -151,7 +201,7 @@ const Charts = () => {
           >
             <ArrowLeft className="h-5 w-5 text-slate-400" />
           </button>
-          <h1 className="text-xl md:text-2xl font-bold text-white">{pair} Price Charts</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-white">{pairToUse} Price Charts</h1>
         </div>
         <p className="text-sm md:text-base text-slate-400">
           Compare real-time prices between {buyExchange} and {sellExchange}
@@ -165,7 +215,7 @@ const Charts = () => {
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <BarChart2 className="h-5 w-5 text-blue-400" />
-                  <CardTitle>{pair} Price Comparison</CardTitle>
+                  <CardTitle>{pairToUse} Price Comparison</CardTitle>
                 </div>
                 <button 
                   onClick={handleRefresh}
