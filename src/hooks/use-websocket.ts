@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getFallbackTickerData } from '@/lib/api/cryptoDataApi';
+import { WebSocketRetryManager } from '@/lib/exchanges/websocketRetry';
 
 // Extended version of the WebSocket hook with better error handling and recovery
 export function useEnhancedWebSocket(
@@ -129,6 +130,22 @@ export function useEnhancedWebSocket(
     }
   }, [enabled, symbol]);
   
+  // Add a reconnect function to manually trigger reconnection
+  const reconnect = useCallback(() => {
+    // Reset reconnect attempts
+    exchangeIds.forEach(exchange => {
+      reconnectAttemptsRef.current[exchange] = 0;
+      
+      // Clear any existing reconnect timers
+      if (reconnectTimersRef.current[exchange]) {
+        clearTimeout(reconnectTimersRef.current[exchange]);
+      }
+      
+      // Attempt to reconnect
+      connectWebSocket(exchange);
+    });
+  }, [connectWebSocket, exchangeIds]);
+  
   useEffect(() => {
     if (!enabled) return;
     
@@ -177,7 +194,7 @@ export function useEnhancedWebSocket(
     };
   }, [connectWebSocket, enabled, exchangeIds, symbol, isConnected]);
   
-  return { data, isConnected, error };
+  return { data, isConnected, error, reconnect };
 }
 
 // Create an adapter to maintain compatibility with the original hook

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
 import { cn } from '@/lib/utils';
-import { useTickerWebSocket } from '@/hooks/use-websocket';
+import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
 import { toast } from '@/hooks/use-toast';
 import { Ticker } from '@/lib/exchanges/exchangeApi';
 import { calculateProfitData } from '@/lib/api/cryptoDataApi';
@@ -42,8 +42,8 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
   const [chartData, setChartData] = useState<ProfitDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Get ticker data for profit calculation
-  const { data: tickerData, isConnected, error } = useTickerWebSocket('binance', symbol, true);
+  // Updated to use useMultiTickerWebSocket instead of useTickerWebSocket
+  const { data: tickerData, isConnected, error } = useMultiTickerWebSocket(['binance'], symbol, true);
   
   // Set up initial chart data
   useEffect(() => {
@@ -58,8 +58,9 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
         setIsLoading(true);
         
         // Use real ticker data to generate profit data that reflects actual market movements
-        // Safely pass tickerData with fallbacks
-        const profitData = calculateProfitData(tickerData || {}, 30);
+        // Get ticker data for binance specifically
+        const binanceTickerData = tickerData?.binance || {};
+        const profitData = calculateProfitData(binanceTickerData, 30);
         setChartData(profitData);
       } catch (err) {
         console.error("Failed to fetch historical data:", err);
@@ -78,8 +79,8 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
   
   // Update chart data when ticker data changes
   useEffect(() => {
-    // Safely cast tickerData to Ticker if it exists and has the right shape
-    const ticker = tickerData as Ticker | null;
+    // Get ticker from binance or use null
+    const ticker = tickerData?.binance as Ticker | null;
     
     if (ticker && typeof ticker === 'object' && 'changePercent' in ticker && chartData.length > 0) {
       const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -137,13 +138,13 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
       <div className="flex justify-between items-center mb-4">
         {title && <h3 className="text-white font-medium">{title}</h3>}
         
-        {!isConnected && !isLoading && (
+        {!isConnected?.binance && !isLoading && (
           <div className="text-xs text-amber-500 bg-amber-950/30 rounded px-2 py-1">
             Offline - Using latest data
           </div>
         )}
         
-        {isConnected && (
+        {isConnected?.binance && (
           <div className="text-xs text-green-500 bg-green-950/30 rounded px-2 py-1 flex items-center">
             <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
             Live

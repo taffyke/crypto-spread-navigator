@@ -73,7 +73,7 @@ const Charts = () => {
     return [parts[0] || 'BTC', parts[1] || 'USDT'];
   }, [formattedPair]);
   
-  // Use the WebSocket hook to get real-time ticker data
+  // Use the WebSocket hook to get real-time ticker data - now with the reconnect function
   const { 
     data: tickerData,
     isConnected,
