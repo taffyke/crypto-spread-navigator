@@ -14,6 +14,13 @@ interface ExchangeVolumeData {
   volume24h: number;
 }
 
+// Define a custom payload type for the Legend component
+interface CustomLegendPayload {
+  value: string;
+  color: string;
+  logo?: string;
+}
+
 const COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ef4444'];
 const EXCHANGE_LOGOS: Record<string, string> = {
   binance: '/exchange-logos/binance.svg',
@@ -195,7 +202,8 @@ const ExchangeVolume = () => {
                 />
                 <Legend 
                   formatter={(value, entry, index) => {
-                    const logoPath = entry?.payload?.logo;
+                    const item = entry && (entry.payload as unknown as { logo?: string } | undefined);
+                    const logoPath = item?.logo;
                     return (
                       <span className="flex items-center gap-1">
                         {logoPath && (
