@@ -265,265 +265,246 @@ const Charts = () => {
   
   return (
     <div className="p-4 md:p-6">
-      <div className="mb-4 md:mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <button 
-            onClick={handleGoBack} 
-            className="bg-slate-800 hover:bg-slate-700 p-2 rounded-full transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-slate-400" />
-          </button>
+      <div className="flex items-center mb-6">
+        <button 
+          onClick={handleGoBack}
+          className="mr-4 p-2 rounded-full bg-slate-800 hover:bg-slate-700 transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5 text-white" />
+        </button>
+        <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
           <div className="flex items-center">
             <img 
               src={`/crypto-icons/${baseCurrency.toLowerCase()}.svg`}
               alt={baseCurrency}
-              className="h-6 w-6 mr-1"
+              className="w-6 h-6 mr-1"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = '/crypto-icons/generic.svg';
               }}
             />
-            <h1 className="text-xl md:text-2xl font-bold text-white mr-1">{formattedPair}</h1>
-            <img 
-              src={`/crypto-icons/${quoteCurrency.toLowerCase()}.svg`}
-              alt={quoteCurrency}
-              className="h-5 w-5 opacity-75"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/crypto-icons/generic.svg';
-              }}
-            />
+            <span>{formattedPair}</span>
           </div>
-        </div>
-        <p className="text-sm md:text-base text-slate-400 flex items-center">
-          Compare real-time prices between 
-          <span className="inline-flex items-center mx-1">
-            <img 
-              src={`/exchange-logos/${normalizedBuyExchange}.svg`}
-              alt={buyExchange}
-              className="h-4 w-4 mr-1"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            {buyExchange}
-          </span> 
-          and 
-          <span className="inline-flex items-center mx-1">
-            <img 
-              src={`/exchange-logos/${normalizedSellExchange}.svg`}
-              alt={sellExchange}
-              className="h-4 w-4 mr-1"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            {sellExchange}
+          <span className="text-slate-400 font-normal text-sm md:text-base">
+            Arbitrage Charts
           </span>
-        </p>
+        </h1>
       </div>
       
-      {errorMessage && (
-        <div className="mb-4 bg-red-900/30 border border-red-700 rounded-md p-3 flex items-center">
-          <AlertTriangle className="h-5 w-5 text-red-400 mr-2" />
-          <p className="text-red-200 text-sm">{errorMessage}</p>
-        </div>
-      )}
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card className="bg-slate-800 border-slate-700 text-white">
             <CardHeader className="pb-2">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm md:text-base flex items-center gap-2">
                   <BarChart2 className="h-5 w-5 text-blue-400" />
-                  <CardTitle>{formattedPair} Price Comparison</CardTitle>
-                </div>
-                <div className="flex items-center">
+                  Price Comparison
+                  
+                  {errorMessage && (
+                    <span className="ml-2 text-xs text-red-400 font-normal flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {errorMessage}
+                    </span>
+                  )}
+                </CardTitle>
+                
+                <div className="flex items-center gap-2">
                   {lastUpdated && (
-                    <span className="text-xs text-slate-400 mr-4">
-                      Last update: {lastUpdated.toLocaleTimeString()}
+                    <span className="text-xs text-slate-400">
+                      Last updated: {lastUpdated.toLocaleTimeString()}
                     </span>
                   )}
                   <button 
                     onClick={handleRefresh}
-                    disabled={isLoading}
                     className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors"
                   >
-                    <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className="h-4 w-4" />
                   </button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px]">
-                {isLoading || priceHistory.length === 0 ? (
-                  <div className="h-full w-full flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <div className="h-[350px] mt-2">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <RefreshCw className="h-8 w-8 text-blue-500 animate-spin" />
                   </div>
-                ) : (
+                ) : priceHistory.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={priceHistory}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                      margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
                       <XAxis 
                         dataKey="timestamp" 
-                        tickFormatter={formatXAxis} 
-                        stroke="#64748b" 
+                        stroke="#94a3b8" 
+                        tickFormatter={formatXAxis}
+                        minTickGap={30}
                       />
                       <YAxis 
-                        stroke="#64748b"
+                        stroke="#94a3b8"
+                        tickFormatter={(value) => `$${value.toFixed(value < 1 ? 4 : 2)}`}
                         domain={['auto', 'auto']}
-                        tickFormatter={(value) => formatPrice(value)}
                       />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend />
                       <Line 
                         type="monotone" 
                         dataKey="buyPrice" 
-                        name={`${buyExchange} Price`} 
                         stroke="#3b82f6" 
-                        dot={false} 
-                        activeDot={{ r: 8 }} 
+                        name={`${buyExchange} (Buy)`}
+                        dot={false}
+                        activeDot={{ r: 4 }}
                       />
                       <Line 
                         type="monotone" 
                         dataKey="sellPrice" 
-                        name={`${sellExchange} Price`} 
                         stroke="#10b981" 
-                        dot={false} 
-                        activeDot={{ r: 8 }} 
+                        name={`${sellExchange} (Sell)`}
+                        dot={false}
+                        activeDot={{ r: 4 }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <span className="text-slate-400">No price data available</span>
+                  </div>
                 )}
               </div>
             </CardContent>
           </Card>
         </div>
         
-        <div className="lg:col-span-1 space-y-4">
-          <Card className="bg-slate-800 border-slate-700 text-white">
-            <CardHeader>
-              <CardTitle className="text-base">Current Prices</CardTitle>
+        <div>
+          <Card className="bg-slate-800 border-slate-700 text-white mb-6">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm md:text-base">Arbitrage Opportunity</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-slate-900 p-3 rounded-lg">
-                <div className="text-sm text-slate-400 mb-1 flex items-center">
-                  <img 
-                    src={`/exchange-logos/${normalizedBuyExchange}.svg`}
-                    alt={buyExchange}
-                    className="h-4 w-4 mr-1"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                  {buyExchange}
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-900 rounded-md p-3">
+                    <div className="flex items-center text-xs text-slate-400 mb-1">
+                      <img 
+                        src={`/exchange-logos/${normalizedBuyExchange}.svg`}
+                        alt={buyExchange}
+                        className="w-4 h-4 mr-1"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                      <p>Buy at {buyExchange}</p>
+                    </div>
+                    <p className="text-sm font-medium text-white">{formatPrice(currentBuyPrice)}</p>
+                  </div>
+                  <div className="bg-slate-900 rounded-md p-3">
+                    <div className="flex items-center text-xs text-slate-400 mb-1">
+                      <img 
+                        src={`/exchange-logos/${normalizedSellExchange}.svg`}
+                        alt={sellExchange}
+                        className="w-4 h-4 mr-1"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                      <p>Sell at {sellExchange}</p>
+                    </div>
+                    <p className="text-sm font-medium text-white">{formatPrice(currentSellPrice)}</p>
+                  </div>
                 </div>
-                <div className="text-lg font-bold text-white">
-                  {formatPrice(currentBuyPrice)}
+                
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Current Spread</p>
+                  <p className={`text-xl font-bold ${currentSpread >= 3 ? 'text-green-500' : currentSpread >= 1 ? 'text-yellow-500' : 'text-red-500'}`}>
+                    {currentSpread.toFixed(2)}%
+                  </p>
                 </div>
-              </div>
-              
-              <div className="bg-slate-900 p-3 rounded-lg">
-                <div className="text-sm text-slate-400 mb-1 flex items-center">
-                  <img 
-                    src={`/exchange-logos/${normalizedSellExchange}.svg`}
-                    alt={sellExchange}
-                    className="h-4 w-4 mr-1"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                  {sellExchange}
+                
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Estimated Profit (on $1000)</p>
+                  <p className={`text-base font-medium ${(currentSpread / 100 * 1000) > 15 ? 'text-green-500' : 'text-yellow-500'}`}>
+                    {formatPrice((currentSpread / 100) * 1000)}
+                  </p>
                 </div>
-                <div className="text-lg font-bold text-white">
-                  {formatPrice(currentSellPrice)}
+                
+                <div className="border-t border-slate-700 pt-4">
+                  <div className="flex justify-between mb-2">
+                    <p className="text-xs text-slate-400">Risk Level</p>
+                    <p className={`text-xs font-medium ${
+                      currentSpread >= 3 ? 'text-green-500' : 
+                      currentSpread >= 1.5 ? 'text-yellow-500' : 
+                      'text-red-500'
+                    }`}>
+                      {currentSpread >= 3 ? 'Low Risk' : 
+                       currentSpread >= 1.5 ? 'Medium Risk' : 
+                       'High Risk'}
+                    </p>
+                  </div>
+                  <div className="flex justify-between">
+                    <p className="text-xs text-slate-400">Exchange Volume</p>
+                    <p className="text-xs text-white">High</p>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="bg-slate-900 p-3 rounded-lg">
-                <div className="text-sm text-slate-400 mb-1">
-                  Current Spread
-                </div>
-                <div className={`text-lg font-bold ${
-                  currentSpread >= 2 ? "text-green-500" :
-                  currentSpread >= 0.5 ? "text-yellow-500" :
-                  currentSpread < 0 ? "text-red-500" : "text-slate-400"
-                }`}>
-                  {currentSpread.toFixed(2)}%
-                </div>
-              </div>
-              
-              <div className="bg-slate-900 p-3 rounded-lg">
-                <div className="text-sm text-slate-400 mb-1">
-                  Arbitrage Opportunity
-                </div>
-                <div className="flex gap-2">
-                  <Badge className={
-                    currentSpread >= 1.5 ? "bg-green-600" :
-                    currentSpread >= 0.5 ? "bg-yellow-600" :
-                    "bg-red-600"
-                  }>
-                    {currentSpread >= 1.5 ? "Profitable" :
-                     currentSpread >= 0.5 ? "Marginal" :
-                     "Not Recommended"}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="bg-slate-900 p-3 rounded-lg">
-                <div className="text-sm text-slate-400 mb-1">
-                  WebSocket Status
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${errorMessage ? "bg-red-500" : (wsError ? "bg-yellow-500" : "bg-green-500")}`}></div>
-                  <span className="text-sm">
-                    {errorMessage ? "Error" : (wsError ? "Using Fallback Data" : "Connected")}
-                  </span>
-                </div>
+                
+                <a 
+                  href={`https://www.binance.com/en/trade/${baseCurrency}_${quoteCurrency}?theme=dark&type=spot`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-sm text-white transition-colors text-center"
+                >
+                  Trade on {buyExchange}
+                </a>
               </div>
             </CardContent>
           </Card>
           
           <Card className="bg-slate-800 border-slate-700 text-white">
-            <CardHeader>
-              <CardTitle className="text-base">Spread History</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm md:text-base">Spread History</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[150px]">
-                {isLoading || priceHistory.length === 0 ? (
-                  <div className="h-full w-full flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-500"></div>
+              <div className="h-[200px]">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <RefreshCw className="h-6 w-6 text-blue-500 animate-spin" />
                   </div>
-                ) : (
+                ) : priceHistory.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={priceHistory}
                       margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
                       <XAxis 
                         dataKey="timestamp" 
-                        tickFormatter={formatXAxis} 
-                        stroke="#64748b"
-                        tick={{ fontSize: 10 }}
+                        stroke="#94a3b8" 
+                        tickFormatter={formatXAxis}
+                        minTickGap={30}
                       />
                       <YAxis 
-                        stroke="#64748b"
-                        tick={{ fontSize: 10 }}
-                        tickFormatter={(value) => `${value.toFixed(1)}%`}
+                        stroke="#94a3b8"
+                        tickFormatter={(value) => `${value.toFixed(2)}%`}
+                        domain={['auto', 'auto']}
                       />
-                      <Tooltip />
+                      <Tooltip 
+                        formatter={(value: any) => [`${parseFloat(value).toFixed(2)}%`, 'Spread']}
+                        labelFormatter={(label) => new Date(label).toLocaleTimeString()}
+                      />
                       <Line 
                         type="monotone" 
                         dataKey="spread" 
-                        name="Spread %" 
-                        stroke="#eab308" 
-                        dot={false} 
+                        stroke="#a855f7" 
+                        name="Spread %"
+                        dot={false}
+                        activeDot={{ r: 4 }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <span className="text-slate-400">No spread data available</span>
+                  </div>
                 )}
               </div>
             </CardContent>

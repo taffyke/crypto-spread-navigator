@@ -1,14 +1,33 @@
-
 // Since this is a read-only file, we need to create an enhanced version that can recover from WebSocket errors
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getFallbackTickerData } from '@/lib/api/cryptoDataApi';
 import { WebSocketRetryManager } from '@/lib/exchanges/websocketRetry';
+import { EXCHANGE_CONFIGS } from '@/lib/exchanges/exchangeApi';
+
+// Mapping of exchange IDs to their WebSocket endpoints for ticker data
+const EXCHANGE_WS_ENDPOINTS: Record<string, string> = {
+  binance: 'wss://stream.binance.com:9443/ws',
+  bitget: 'wss://ws.bitget.com/spot/v1/stream',
+  bybit: 'wss://stream.bybit.com/v5/public/spot',
+  kucoin: 'wss://push1.kucoin.com/endpoint',  // Requires token from REST API
+  gate_io: 'wss://api.gateio.ws/ws/v4/',
+  bitfinex: 'wss://api-pub.bitfinex.com/ws/2',
+  gemini: 'wss://api.gemini.com/v1/marketdata',
+  coinbase: 'wss://ws-feed.exchange.coinbase.com',
+  kraken: 'wss://ws.kraken.com',
+  poloniex: 'wss://ws.poloniex.com/ws',
+  okx: 'wss://ws.okx.com:8443/ws/v5/public',
+  ascendex: 'wss://ascendex.com/1/api/pro/v1/stream',
+  bitrue: 'wss://ws.bitrue.com/kline-api/ws',
+  htx: 'wss://api.huobi.pro/ws',  // HTX was formerly Huobi
+  mexc_global: 'wss://wbs.mexc.com/ws',
+};
 
 // Extended version of the WebSocket hook with better error handling and recovery
 export function useEnhancedWebSocket(
   exchangeIds: string[],
-  symbol: string,
+  symbolsInput: string,
   enabled: boolean = true
 ) {
   const [data, setData] = useState<Record<string, any>>({});
@@ -17,8 +36,135 @@ export function useEnhancedWebSocket(
   const wsRefs = useRef<Record<string, WebSocket | null>>({});
   const reconnectTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
   
+  // Parse symbols input - could be a single symbol or comma-separated list
+  const symbols = useMemo(() => {
+    return symbolsInput.split(',').map(s => s.trim()).filter(Boolean);
+  }, [symbolsInput]);
+  
+  // Default to BTC/USDT if no symbols provided
+  const primarySymbol = symbols.length > 0 ? symbols[0] : 'BTC/USDT';
+  
   const MAX_RECONNECT_ATTEMPTS = 3;
   const reconnectAttemptsRef = useRef<Record<string, number>>({});
+
+  // Function to get exchange-specific subscription message
+  const getSubscriptionMessage = useCallback((exchange: string, symbol: string) => {
+    const formattedSymbol = symbol.replace('/', '').toLowerCase(); // Format: btcusdt
+    
+    switch (exchange) {
+      case 'binance':
+        return JSON.stringify({
+          method: 'SUBSCRIBE',
+          params: [`${formattedSymbol}@ticker`],
+          id: Date.now()
+        });
+      case 'bitget':
+        return JSON.stringify({
+          op: 'subscribe',
+          args: [{
+            instType: 'sp',
+            channel: 'ticker',
+            instId: formattedSymbol.toUpperCase()
+          }]
+        });
+      case 'bybit':
+        return JSON.stringify({
+          op: 'subscribe',
+          args: [`tickers.${formattedSymbol.toUpperCase()}`]
+        });
+      case 'kucoin':
+        // KuCoin requires a token from REST API first, this is simplified
+        return JSON.stringify({
+          id: Date.now(),
+          type: 'subscribe',
+          topic: `/market/ticker:${formattedSymbol.toUpperCase()}`,
+          privateChannel: false,
+          response: true
+        });
+      case 'gate_io':
+        return JSON.stringify({
+          time: Math.floor(Date.now() / 1000),
+          channel: 'spot.tickers',
+          event: 'subscribe',
+          payload: [formattedSymbol.toUpperCase()]
+        });
+      case 'bitfinex':
+        // Bitfinex uses a different format - send array for ticker subscription
+        return JSON.stringify({
+          event: 'subscribe',
+          channel: 'ticker',
+          symbol: `t${formattedSymbol.toUpperCase()}`
+        });
+      case 'coinbase':
+        return JSON.stringify({
+          type: 'subscribe',
+          product_ids: [formattedSymbol.replace('/', '-').toUpperCase()],
+          channels: ['ticker']
+        });
+      case 'kraken':
+        return JSON.stringify({
+          name: 'subscribe',
+          reqid: Date.now(),
+          pair: [symbol.replace('/', '/').toUpperCase()],
+          subscription: { name: 'ticker' }
+        });
+      // Add more exchange-specific subscription formats as needed
+      default:
+        // Generic subscription format as fallback
+        return JSON.stringify({
+          method: 'subscribe',
+          params: [formattedSymbol, 'ticker'],
+          id: Date.now()
+        });
+    }
+  }, []);
+  
+  // Function to parse exchange-specific ticker data
+  const parseTickerData = useCallback((exchange: string, data: any, symbol: string) => {
+    try {
+      // Default fallback data
+      let result = getFallbackTickerData(exchange, symbol);
+      const formattedSymbol = symbol.replace('/', '').toLowerCase();
+      
+      switch (exchange) {
+        case 'binance':
+          if (data.data && data.stream && data.stream.includes('@ticker')) {
+            const tickerData = data.data;
+            result = {
+              symbol: symbol,
+              price: parseFloat(tickerData.c),
+              bidPrice: parseFloat(tickerData.b),
+              askPrice: parseFloat(tickerData.a),
+              volume: parseFloat(tickerData.v),
+              timestamp: Date.now()
+            };
+          }
+          break;
+        case 'bitget':
+          if (data.data && data.arg && data.arg.channel === 'ticker') {
+            const tickerData = data.data;
+            result = {
+              symbol: symbol,
+              price: parseFloat(tickerData.last),
+              bidPrice: parseFloat(tickerData.bestBid),
+              askPrice: parseFloat(tickerData.bestAsk),
+              volume: parseFloat(tickerData.volume24h),
+              timestamp: Date.now()
+            };
+          }
+          break;
+        // Add more exchange-specific parsers as needed
+        default:
+          // Use fallback data if specific parser not available
+          console.log(`No specific parser for ${exchange}, using fallback data`);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error(`Error parsing ${exchange} ticker data:`, error);
+      return getFallbackTickerData(exchange, symbol);
+    }
+  }, []);
 
   const connectWebSocket = useCallback((exchange: string) => {
     if (!enabled) return;
@@ -27,10 +173,18 @@ export function useEnhancedWebSocket(
     if (reconnectAttemptsRef.current[exchange] >= MAX_RECONNECT_ATTEMPTS) {
       console.log(`Max reconnect attempts reached for ${exchange}, using fallback data`);
       
-      // Use fallback data instead
+      // Use fallback data for each symbol
+      const exchangeData: Record<string, any> = {};
+      symbols.forEach(symbol => {
+        exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
+      });
+      
+      // If we have just one symbol, keep the old format for compatibility
       setData(prev => ({
         ...prev,
-        [exchange]: getFallbackTickerData(exchange, symbol)
+        [exchange]: symbols.length === 1 ? 
+          getFallbackTickerData(exchange, primarySymbol) : 
+          { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
       }));
       
       setIsConnected(prev => ({
@@ -47,8 +201,8 @@ export function useEnhancedWebSocket(
     }
     
     try {
-      // In a real app, these would be actual websocket endpoints
-      const wsUrl = `wss://echo.websocket.org`;
+      // Get the exchange-specific WebSocket URL
+      const wsUrl = EXCHANGE_WS_ENDPOINTS[exchange] || 'wss://echo.websocket.org';
       
       const ws = new WebSocket(wsUrl);
       wsRefs.current[exchange] = ws;
@@ -61,22 +215,49 @@ export function useEnhancedWebSocket(
         // Reset reconnect attempts on successful connection
         reconnectAttemptsRef.current[exchange] = 0;
         
-        // Send subscription message 
-        ws.send(JSON.stringify({ 
-          action: 'subscribe', 
-          symbol: symbol,
-          exchange: exchange
-        }));
+        // Send subscription message for each symbol
+        symbols.forEach(symbol => {
+          const subscriptionMessage = getSubscriptionMessage(exchange, symbol);
+          ws.send(subscriptionMessage);
+        });
       };
       
       ws.onmessage = (event) => {
-        // In a real implementation, we would parse the actual message
-        // Here, we'll simulate ticker data
-        
-        setData(prev => ({
-          ...prev,
-          [exchange]: getFallbackTickerData(exchange, symbol)
-        }));
+        try {
+          // Parse the message data
+          const messageData = JSON.parse(event.data);
+          
+          // For real implementation, parse exchange-specific data format
+          // For simulation, generate data for all symbols
+          const exchangeData: Record<string, any> = {};
+          
+          symbols.forEach(symbol => {
+            // Use exchange-specific parser if available
+            exchangeData[symbol] = parseTickerData(exchange, messageData, symbol);
+          });
+          
+          // Update with the format expected by the application
+          setData(prev => ({
+            ...prev,
+            [exchange]: symbols.length === 1 ? 
+              parseTickerData(exchange, messageData, primarySymbol) : 
+              { primary: parseTickerData(exchange, messageData, primarySymbol), symbols: exchangeData }
+          }));
+        } catch (error) {
+          console.error(`Error processing WebSocket message for ${exchange}:`, error);
+          // Fall back to mock data on parsing error
+          const exchangeData: Record<string, any> = {};
+          symbols.forEach(symbol => {
+            exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
+          });
+          
+          setData(prev => ({
+            ...prev,
+            [exchange]: symbols.length === 1 ? 
+              getFallbackTickerData(exchange, primarySymbol) : 
+              { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
+          }));
+        }
       };
       
       ws.onerror = (event) => {
@@ -87,9 +268,16 @@ export function useEnhancedWebSocket(
           (reconnectAttemptsRef.current[exchange] || 0) + 1;
           
         // Fall back to API data after error
+        const exchangeData: Record<string, any> = {};
+        symbols.forEach(symbol => {
+          exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
+        });
+        
         setData(prev => ({
           ...prev,
-          [exchange]: getFallbackTickerData(exchange, symbol)
+          [exchange]: symbols.length === 1 ? 
+            getFallbackTickerData(exchange, primarySymbol) : 
+            { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
         }));
       };
       
@@ -107,9 +295,16 @@ export function useEnhancedWebSocket(
           reconnectTimersRef.current[exchange] = timeout;
         } else {
           // Use fallback data instead
+          const exchangeData: Record<string, any> = {};
+          symbols.forEach(symbol => {
+            exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
+          });
+          
           setData(prev => ({
             ...prev,
-            [exchange]: getFallbackTickerData(exchange, symbol)
+            [exchange]: symbols.length === 1 ? 
+              getFallbackTickerData(exchange, primarySymbol) : 
+              { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
           }));
           
           setIsConnected(prev => ({
@@ -123,12 +318,19 @@ export function useEnhancedWebSocket(
       setError(`Failed to connect to ${exchange}`);
       
       // Use fallback data on connection error
+      const exchangeData: Record<string, any> = {};
+      symbols.forEach(symbol => {
+        exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
+      });
+      
       setData(prev => ({
         ...prev,
-        [exchange]: getFallbackTickerData(exchange, symbol)
+        [exchange]: symbols.length === 1 ? 
+          getFallbackTickerData(exchange, primarySymbol) : 
+          { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
       }));
     }
-  }, [enabled, symbol]);
+  }, [enabled, symbols, primarySymbol, getSubscriptionMessage, parseTickerData]);
   
   // Add a reconnect function to manually trigger reconnection
   const reconnect = useCallback(() => {
@@ -170,9 +372,16 @@ export function useEnhancedWebSocket(
       exchangeIds.forEach(exchange => {
         // Only use fallback for exchanges that are not connected via WebSocket
         if (!isConnected[exchange] || reconnectAttemptsRef.current[exchange] >= MAX_RECONNECT_ATTEMPTS) {
+          const exchangeData: Record<string, any> = {};
+          symbols.forEach(symbol => {
+            exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
+          });
+          
           setData(prev => ({
             ...prev,
-            [exchange]: getFallbackTickerData(exchange, symbol)
+            [exchange]: symbols.length === 1 ? 
+              getFallbackTickerData(exchange, primarySymbol) : 
+              { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
           }));
         }
       });
@@ -192,17 +401,16 @@ export function useEnhancedWebSocket(
       // Clear the refresh interval
       clearInterval(intervalId);
     };
-  }, [connectWebSocket, enabled, exchangeIds, symbol, isConnected]);
+  }, [connectWebSocket, enabled, exchangeIds, symbols, primarySymbol, isConnected]);
   
   return { data, isConnected, error, reconnect };
 }
 
-// Create an adapter to maintain compatibility with the original hook
+// Create a multi-ticker WebSocket hook for use across the app
 export function useMultiTickerWebSocket(
   exchangeIds: string[],
-  symbol: string,
+  symbols: string,
   enabled: boolean = true
 ) {
-  // Use the enhanced implementation but provide the same interface
-  return useEnhancedWebSocket(exchangeIds, symbol, enabled);
+  return useEnhancedWebSocket(exchangeIds, symbols, enabled);
 }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Calculator } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 interface ArbitrageRiskCalculatorProps {
   className?: string;
   arbitrageType?: 'direct' | 'triangular' | 'futures';
+  sameExchangeChecked?: boolean;
 }
 
-const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct' }: ArbitrageRiskCalculatorProps) => {
-  const [investmentAmount, setInvestmentAmount] = useState<number>(100);
+const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct', sameExchangeChecked = false }: ArbitrageRiskCalculatorProps) => {
+  const [investmentAmount, setInvestmentAmount] = useState<number>(1);
   const [spreadPercentage, setSpreadPercentage] = useState<number>(2.5);
   const [slippagePercentage, setSlippagePercentage] = useState<number>(0.5);
   const [exchangeFee1, setExchangeFee1] = useState<number>(0.1);
@@ -30,9 +30,39 @@ const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct' }: Arbitr
     }
   };
 
+  // Get description based on arbitrage type
+  const getArbitrageTypeDescription = () => {
+    switch(arbitrageType) {
+      case 'triangular': 
+        return "Triangular arbitrage involves more trades and potentially higher fees, but can sometimes find opportunities not visible in direct arbitrage.";
+      case 'futures': 
+        return "Futures arbitrage can offer higher leverage and profit potential, but involves greater market timing risk and funding rates.";
+      default: 
+        return "Direct arbitrage is straightforward with fewer steps, typically focusing on the same asset across different exchanges.";
+    }
+  };
+
+  // New function to determine if network fees apply
+  const getNetworkFeeFactor = () => {
+    // For triangular on same exchange, no network fee
+    if (arbitrageType === 'triangular' && sameExchangeChecked) {
+      return 0; // No network fee when trading on the same exchange
+    }
+    // For futures, reduce network fee
+    else if (arbitrageType === 'futures') {
+      return 0.5; // Futures typically have lower network fees
+    }
+    // For triangular across exchanges, increase network fee
+    else if (arbitrageType === 'triangular' && !sameExchangeChecked) {
+      return 1.5; // More on-chain transactions
+    }
+    // Standard case
+    return 1.0;
+  };
+
   // Calculate potential profit and risk metrics
   useEffect(() => {
-    // Calculate gross profit before fees
+    // Calculate gross profit before fees, incorporating arbitrage type
     const grossProfit = investmentAmount * (spreadPercentage / 100) * getArbitrageTypeFactor();
     
     // Calculate exchange fees
@@ -42,8 +72,11 @@ const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct' }: Arbitr
     // Calculate slippage impact
     const slippageAmount = investmentAmount * (slippagePercentage / 100);
     
+    // Apply different network fees based on arbitrage type and exchange settings
+    const networkFeeAmount = networkFee * getNetworkFeeFactor();
+    
     // Total costs
-    const totalCosts = exchangeFee1Amount + exchangeFee2Amount + networkFee + slippageAmount;
+    const totalCosts = exchangeFee1Amount + exchangeFee2Amount + networkFeeAmount + slippageAmount;
     
     // Net profit
     const calculatedProfit = grossProfit - totalCosts;
@@ -63,7 +96,7 @@ const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct' }: Arbitr
     } else {
       setProfitability('Low Risk');
     }
-  }, [investmentAmount, spreadPercentage, slippagePercentage, exchangeFee1, exchangeFee2, networkFee, arbitrageType]);
+  }, [investmentAmount, spreadPercentage, slippagePercentage, exchangeFee1, exchangeFee2, networkFee, arbitrageType, sameExchangeChecked]);
 
   // Format currency amounts
   const formatCurrency = (value: number) => {
@@ -77,7 +110,7 @@ const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct' }: Arbitr
 
   const handleCalculate = () => {
     toast({
-      title: "Risk Calculation",
+      title: `${arbitrageType.charAt(0).toUpperCase() + arbitrageType.slice(1)} Arbitrage Calculation`,
       description: `Potential Profit: ${formatCurrency(potentialProfit)} | Risk Ratio: ${riskRatio.toFixed(2)}`,
     });
   };
@@ -103,6 +136,7 @@ const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct' }: Arbitr
             {arbitrageType.charAt(0).toUpperCase() + arbitrageType.slice(1)}
           </Badge>
         </div>
+        <p className="text-xs text-slate-400 mt-1">{getArbitrageTypeDescription()}</p>
       </CardHeader>
       <CardContent>
         <div className="space-y-3 md:space-y-4">
@@ -111,6 +145,17 @@ const ArbitrageRiskCalculator = ({ className, arbitrageType = 'direct' }: Arbitr
               <span className="text-slate-400">Investment Amount</span>
               <span className="text-white">{formatCurrency(investmentAmount)}</span>
             </label>
+            <div className="flex items-center gap-2 mb-2">
+              <input 
+                type="number" 
+                min="1" 
+                max="1000000" 
+                step="1" 
+                value={investmentAmount}
+                onChange={(e) => setInvestmentAmount(Math.max(1, Math.min(1000000, parseFloat(e.target.value) || 1)))}
+                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1 text-white"
+              />
+            </div>
             <input 
               type="range" 
               min="1" 

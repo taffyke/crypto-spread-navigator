@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { AppProvider } from '@/lib/contexts/AppContext';
@@ -7,9 +7,10 @@ import {
   Routes,
   BrowserRouter,
   Outlet,
-  Link
+  Link,
+  useNavigate
 } from 'react-router-dom';
-import { Search, User, Bell, Settings, LogOut, HelpCircle } from 'lucide-react';
+import { Search, User, Bell, Settings, LogOut, HelpCircle, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { 
@@ -20,6 +21,9 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
+import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 
 // Import page components that were causing errors first to ensure they're defined
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
@@ -54,18 +58,82 @@ const queryClient = new QueryClient({
 const AppLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const navigate = useNavigate();
   
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      // Implement search functionality here
-      console.log('Searching for:', searchQuery);
-      // For a real implementation, you might navigate to a search results page
-      // or filter the current view
+  // Define search categories and results
+  const searchCategories = [
+    {
+      name: 'Pages',
+      items: [
+        { name: 'Dashboard', path: '/', description: 'Overview of market stats and opportunities' },
+        { name: 'Arbitrage Scanner', path: '/scanner', description: 'Find cross-exchange arbitrage opportunities' },
+        { name: 'Market Analysis', path: '/market-analysis', description: 'Analyze market trends and correlations' },
+        { name: 'Performance', path: '/performance', description: 'Track your trading performance' },
+        { name: 'Bots', path: '/bots', description: 'Configure automated trading bots' },
+        { name: 'Portfolio', path: '/portfolio', description: 'View your crypto portfolio' },
+        { name: 'Profile', path: '/profile', description: 'Manage your account settings' },
+      ]
+    },
+    {
+      name: 'Tools',
+      items: [
+        { name: 'Risk Calculator', path: '/scanner', description: 'Calculate arbitrage risk and profit' },
+        { name: 'Direct Arbitrage', path: '/scanner', description: 'Find direct exchange arbitrage opportunities' },
+        { name: 'Triangular Arbitrage', path: '/scanner?type=triangular', description: 'Find triangular arbitrage opportunities' },
+        { name: 'Futures Arbitrage', path: '/scanner?type=futures', description: 'Find futures arbitrage opportunities' },
+        { name: 'Charts', path: '/charts/BTC/USDT', description: 'View real-time price charts' },
+      ]
+    },
+    {
+      name: 'Popular Markets',
+      items: [
+        { name: 'BTC/USDT', path: '/charts/BTC/USDT', description: 'Bitcoin/USDT price charts' },
+        { name: 'ETH/USDT', path: '/charts/ETH/USDT', description: 'Ethereum/USDT price charts' },
+        { name: 'SOL/USDT', path: '/charts/SOL/USDT', description: 'Solana/USDT price charts' },
+        { name: 'XRP/USDT', path: '/charts/XRP/USDT', description: 'Ripple/USDT price charts' },
+      ]
+    }
+  ];
+
+  // Filter search results based on query
+  const filteredResults = useMemo(() => {
+    if (!searchQuery.trim()) return searchCategories;
+
+    const query = searchQuery.toLowerCase().trim();
+    
+    return searchCategories.map(category => ({
+      name: category.name,
+      items: category.items.filter(item => 
+        item.name.toLowerCase().includes(query) || 
+        item.description.toLowerCase().includes(query)
+      )
+    })).filter(category => category.items.length > 0);
+  }, [searchQuery, searchCategories]);
+
+  // Handle selecting a search result
+  const handleSelectSearchResult = (path: string) => {
+    setShowSearchResults(false);
+    setSearchQuery('');
+    navigate(path);
+  };
+
+  // Simulate search with a slight delay for UI feedback
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    
+    // Show loading indicator briefly
+    if (value.trim()) {
+      setIsSearching(true);
+      setTimeout(() => {
+        setIsSearching(false);
+      }, 300);
     }
   };
 
@@ -83,17 +151,63 @@ const AppLayout = () => {
           
           {/* Spacer that pushes the right items to the edge */}
           <div className={`flex-1 flex items-center transition-all ${sidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
-            {/* Global search bar */}
-            <form onSubmit={handleSearch} className="relative w-full max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input 
-                type="search"
-                placeholder="Search markets, assets, exchanges..."
-                className="pl-10 bg-slate-800 border-slate-700 text-white h-9 w-full"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </form>
+            {/* Global search bar - enhanced with dropdown */}
+            <div className="relative w-full max-w-md">
+              <Popover open={showSearchResults && searchQuery.length > 0} onOpenChange={setShowSearchResults}>
+                <PopoverTrigger asChild>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input 
+                      type="search"
+                      placeholder="Search features, markets, tools..."
+                      className="pl-10 bg-slate-800 border-slate-700 text-white h-9 w-full"
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                      onFocus={() => setShowSearchResults(true)}
+                    />
+                    {isSearching && (
+                      <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />
+                    )}
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-[400px] max-h-[500px] overflow-y-auto" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Search features, markets, tools..." 
+                      value={searchQuery} 
+                      onValueChange={setSearchQuery}
+                    />
+                    <CommandList>
+                      {searchQuery.length > 0 && !filteredResults.some(category => category.items.length > 0) && (
+                        <CommandEmpty>No results found</CommandEmpty>
+                      )}
+
+                      {filteredResults.map((category) => (
+                        category.items.length > 0 && (
+                          <CommandGroup key={category.name} heading={category.name}>
+                            {category.items.map((item) => (
+                              <CommandItem 
+                                key={`${category.name}-${item.name}`} 
+                                onSelect={() => handleSelectSearchResult(item.path)}
+                                className="cursor-pointer"
+                              >
+                                <div className="flex flex-col">
+                                  <span>{item.name}</span>
+                                  <span className="text-xs text-slate-400">{item.description}</span>
+                                </div>
+                                {category.name === 'Popular Markets' && (
+                                  <Badge className="ml-auto bg-blue-900 text-blue-300">Market</Badge>
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           {/* Right-side components */}

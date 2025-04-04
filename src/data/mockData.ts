@@ -3,37 +3,20 @@
 // Exchanges
 export const exchanges = [
   { id: 'binance', name: 'Binance' },
-  { id: 'binance_us', name: 'Binance US' },
-  { id: 'coinbase', name: 'Coinbase' },
-  { id: 'mexc_global', name: 'MEXC Global' },
-  { id: 'gate_io', name: 'Gate.io' },
-  { id: 'kucoin', name: 'KuCoin' },
-  { id: 'bitfinex', name: 'Bitfinex' },
-  { id: 'bitrue', name: 'Bitrue' },
-  { id: 'biget', name: 'Biget' },
-  { id: 'hitbtc', name: 'HitBTC' },
-  { id: 'kraken', name: 'Kraken' },
+  { id: 'bitget', name: 'Bitget' },
   { id: 'bybit', name: 'Bybit' },
-  { id: 'htx', name: 'HTX' },
+  { id: 'kucoin', name: 'KuCoin' },
+  { id: 'gate_io', name: 'Gate.io' },
+  { id: 'bitfinex', name: 'Bitfinex' },
   { id: 'gemini', name: 'Gemini' },
-  { id: 'ascendex', name: 'AscendEX' },
+  { id: 'coinbase', name: 'Coinbase' },
+  { id: 'kraken', name: 'Kraken' },
   { id: 'poloniex', name: 'Poloniex' },
-  { id: 'delta_exchange', name: 'Delta Exchange' },
-  { id: 'lbank', name: 'LBank' },
-  { id: 'deribit', name: 'Deribit' },
-  { id: 'upbit', name: 'Upbit' },
-  { id: 'bitmex', name: 'BitMEX' },
-  { id: 'digifinex', name: 'DigiFinex' },
-  { id: 'crypto_com', name: 'Crypto.com' },
-  { id: 'bithumb', name: 'Bithumb' },
-  { id: 'bitstamp', name: 'Bitstamp' },
   { id: 'okx', name: 'OKX' },
-  { id: 'phemex', name: 'Phemex' },
-  { id: 'coinex', name: 'CoinEx' },
-  { id: 'whitebit', name: 'WhiteBit' },
-  { id: 'bitmart', name: 'BitMart' },
-  { id: 'bigone', name: 'BigONE' },
-  { id: 'bitbay', name: 'BitBay' }
+  { id: 'ascendex', name: 'AscendEX' },
+  { id: 'bitrue', name: 'Bitrue' },
+  { id: 'htx', name: 'HTX' },
+  { id: 'mexc_global', name: 'MEXC Global' }
 ];
 
 // Mock cryptocurrency pairs
@@ -77,6 +60,11 @@ export const generateArbitrageOpportunities = (count: number) => {
     // Random timestamp within the last day
     const timestamp = new Date();
     timestamp.setHours(timestamp.getHours() - Math.random() * 24);
+
+    // Added risk assessment and execution difficulty
+    const executionDifficulty = Math.floor(Math.random() * 5) + 1; // 1-5 scale
+    const riskFactor = Math.floor(Math.random() * 5) + 1; // 1-5 scale
+    const liquidityScore = Math.floor(Math.random() * 100) + 1; // 1-100 scale
     
     opportunities.push({
       id: `arb-${i}`,
@@ -91,6 +79,11 @@ export const generateArbitrageOpportunities = (count: number) => {
       volume24h,
       depositStatus: Math.random() > 0.3 ? "OK" : "Slow",
       withdrawalStatus: Math.random() > 0.3 ? "OK" : "Delayed",
+      executionDifficulty,
+      riskFactor,
+      liquidityScore,
+      netProfitAfterFees: potentialProfit * (0.7 + Math.random() * 0.2), // 70-90% of gross profit
+      estimatedExecutionTime: Math.floor(Math.random() * 180) + 20, // 20-200 seconds
     });
   }
   
@@ -338,3 +331,308 @@ function getCongestionMultiplier(congestion: string): number {
     default: return 1;
   }
 }
+
+// NEW DATA GENERATION FUNCTIONS FOR ENHANCED MARKET ANALYSIS
+
+// Generate real-time arbitrage opportunities
+export const generateRealTimeArbitrageOpportunities = (count: number) => {
+  return generateArbitrageOpportunities(count).map(opp => {
+    // Add additional metrics for real-time arbitrage dashboard
+    return {
+      ...opp,
+      slippage: Math.random() * 0.5,  // 0% to 0.5% slippage
+      executionScore: Math.floor(Math.random() * 100) + 1,  // 1-100 score
+      successProbability: 70 + Math.random() * 30,  // 70-100% probability 
+      totalFees: Math.random() * (opp.potentialProfit * 0.3),  // Fees up to 30% of potential profit
+      breakEvenSpread: (Math.random() * 0.3) + 0.1,  // 0.1% to 0.4% 
+      historicalSuccess: Math.floor(Math.random() * 100) + 1,  // 1-100% historical success rate
+      recommendationStrength: Math.floor(Math.random() * 3) + 1, // 1-3 (1=weak, 2=moderate, 3=strong)
+    };
+  });
+};
+
+// Generate price deviation alerts
+export const generatePriceDeviationAlerts = (count: number) => {
+  const alerts = [];
+  
+  for (let i = 0; i < count; i++) {
+    const pairIndex = Math.floor(Math.random() * pairs.length);
+    const pair = pairs[pairIndex];
+    
+    // Select different exchanges
+    let exchange1Index = Math.floor(Math.random() * exchanges.length);
+    let exchange2Index;
+    do {
+      exchange2Index = Math.floor(Math.random() * exchanges.length);
+    } while (exchange2Index === exchange1Index);
+    
+    const basePrice = getBasePrice(pair);
+    const deviationPercent = (Math.random() * 8) + 2; // 2% to 10% deviation
+    
+    const price1 = basePrice;
+    const price2 = basePrice * (1 + deviationPercent / 100);
+    
+    const historicalCorrelation = 0.7 + Math.random() * 0.25; // 0.7 to 0.95 correlation
+    const deviationFromNorm = Math.floor(Math.random() * 5) + 1; // 1-5 standard deviations
+    
+    // How long the deviation has been occurring
+    const deviationDuration = Math.floor(Math.random() * 120) + 1; // 1-120 minutes
+    
+    // Severity rating 1-10
+    const severityScore = Math.floor(deviationFromNorm * 2);
+    
+    alerts.push({
+      id: `dev-${i}`,
+      pair,
+      exchange1: exchanges[exchange1Index].name,
+      exchange2: exchanges[exchange2Index].name,
+      price1,
+      price2,
+      deviationPercent,
+      historicalCorrelation,
+      deviationFromNorm,
+      deviationDuration,
+      timestamp: new Date(),
+      severityScore,
+      anomalyType: Math.random() > 0.5 ? 'Divergence' : 'Convergence',
+      potentialArbitrage: price2 - price1,
+      alertTriggered: deviationFromNorm > 2
+    });
+  }
+  
+  return alerts.sort((a, b) => b.severityScore - a.severityScore);
+};
+
+// Generate historical spread data
+export const generateHistoricalSpreadData = (pair: string, days: number = 30) => {
+  const data = [];
+  
+  // Create two random exchanges
+  const exchangeIndexes = [];
+  while (exchangeIndexes.length < 2) {
+    const idx = Math.floor(Math.random() * exchanges.length);
+    if (!exchangeIndexes.includes(idx)) {
+      exchangeIndexes.push(idx);
+    }
+  }
+  
+  const baseSpread = Math.random() * 0.5 + 0.1; // Base spread between 0.1% and 0.6%
+  
+  for (let i = 0; i < days; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() - (days - i - 1));
+    
+    // Generate daily spread fluctuations with some randomness
+    // but maintain a somewhat consistent pattern
+    const dailyFactor = 1 + (Math.sin(i / 3) * 0.3) + (Math.random() * 0.4 - 0.2);
+    const spread = baseSpread * dailyFactor;
+    
+    // Calculate if this spread is an outlier (opportunity)
+    const isOpportunity = spread > baseSpread * 1.5;
+    
+    data.push({
+      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      spread: spread,
+      exchange1: exchanges[exchangeIndexes[0]].name,
+      exchange2: exchanges[exchangeIndexes[1]].name,
+      isOpportunity,
+      standardDeviation: isOpportunity ? Math.floor(Math.random() * 3) + 2 : Math.random() * 1.5
+    });
+  }
+  
+  return data;
+};
+
+// Generate liquidity analysis data
+export const generateLiquidityData = (pairCount: number = 10) => {
+  const liquidityData = [];
+  
+  for (let i = 0; i < pairCount; i++) {
+    const pairIndex = Math.floor(Math.random() * Math.min(pairs.length, 10));
+    const pair = pairs[pairIndex];
+    
+    const exchangeData = [];
+    
+    // Select 4-6 random exchanges
+    const exchangeCount = Math.floor(Math.random() * 3) + 4; // 4-6 exchanges
+    const selectedExchangeIndexes = [];
+    
+    while (selectedExchangeIndexes.length < exchangeCount) {
+      const idx = Math.floor(Math.random() * exchanges.length);
+      if (!selectedExchangeIndexes.includes(idx)) {
+        selectedExchangeIndexes.push(idx);
+      }
+    }
+    
+    for (const idx of selectedExchangeIndexes) {
+      const baseVolume = Math.random() * 50000000 + 1000000; // $1M to $51M
+      
+      // Order book depth (in USD)
+      const depth = {
+        '0.1%': baseVolume * (0.2 + Math.random() * 0.3), // 20-50% of volume at 0.1% slippage
+        '0.5%': baseVolume * (0.5 + Math.random() * 0.3), // 50-80% of volume at 0.5% slippage
+        '1.0%': baseVolume * (0.8 + Math.random() * 0.2), // 80-100% of volume at 1.0% slippage
+      };
+      
+      exchangeData.push({
+        exchange: exchanges[idx].name,
+        volume24h: baseVolume,
+        orderBookDepth: depth,
+        slippageScore: Math.floor(Math.random() * 100) + 1, // 1-100
+        liquidityScore: Math.floor(Math.random() * 100) + 1, // 1-100
+        avgTradeSize: Math.floor(Math.random() * 50000) + 1000, // $1K-$51K
+        largestTradeSize: Math.floor(Math.random() * 1000000) + 100000, // $100K-$1.1M
+      });
+    }
+    
+    liquidityData.push({
+      pair,
+      exchanges: exchangeData,
+      totalLiquidity: exchangeData.reduce((sum, ex) => sum + ex.volume24h, 0),
+      bestExecutionExchange: exchangeData.sort((a, b) => b.liquidityScore - a.liquidityScore)[0].exchange
+    });
+  }
+  
+  return liquidityData.sort((a, b) => b.totalLiquidity - a.totalLiquidity);
+};
+
+// Generate technical indicators data for pairs
+export const generateTechnicalIndicatorsData = (pairCount: number = 10) => {
+  const indicatorsData = [];
+  
+  for (let i = 0; i < pairCount; i++) {
+    const pairIndex = Math.floor(Math.random() * pairs.length);
+    const pair = pairs[pairIndex];
+    
+    // Generate random but realistic technical indicators
+    const rsi = Math.floor(Math.random() * 100) + 1; // 1-100
+    const macd = (Math.random() * 40) - 20; // -20 to 20
+    const macdSignal = (Math.random() * 40) - 20; // -20 to 20
+    const macdHistogram = macd - macdSignal;
+    
+    // Bollinger bands
+    const sma20 = getBasePrice(pair);
+    const stdDev = sma20 * (0.01 + Math.random() * 0.04); // 1-5% of price
+    
+    indicatorsData.push({
+      pair,
+      price: getBasePrice(pair),
+      rsi,
+      macd,
+      macdSignal,
+      macdHistogram,
+      bollingerBands: {
+        upper: sma20 + (stdDev * 2),
+        middle: sma20,
+        lower: sma20 - (stdDev * 2),
+        width: (stdDev * 4) / sma20 * 100 // Percentage width
+      },
+      volume24h: Math.random() * 100000000 + 1000000, // $1M to $101M
+      rsiSignal: rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral',
+      macdTrend: macdHistogram > 0 ? 'Bullish' : 'Bearish',
+      bollingerSignal: Math.random() > 0.5 ? 'Squeeze' : 'Expansion',
+      trendStrength: Math.floor(Math.random() * 100) + 1, // 1-100
+      marketInefficiencyScore: Math.floor(Math.random() * 100) + 1, // 1-100
+    });
+  }
+  
+  return indicatorsData;
+};
+
+// Generate fee impact data
+export const generateFeeImpactData = () => {
+  const feeData = [];
+  
+  for (const exchange of exchanges.slice(0, 10)) {  // Take first 10 exchanges
+    const makerFee = 0.05 + Math.random() * 0.45; // 0.05% to 0.5%
+    const takerFee = makerFee + (0.05 + Math.random() * 0.2); // Higher than maker fee
+    const withdrawalFee = {
+      BTC: 0.0001 + Math.random() * 0.0004, // 0.0001 to 0.0005 BTC
+      ETH: 0.001 + Math.random() * 0.009, // 0.001 to 0.01 ETH
+      USDT: 1 + Math.random() * 19, // 1 to 20 USDT
+    };
+    
+    feeData.push({
+      exchange: exchange.name,
+      makerFee,
+      takerFee,
+      withdrawalFee,
+      depositFee: Math.random() > 0.9 ? 0.1 + Math.random() * 0.4 : 0, // 90% chance of free deposits
+      hasTieredFees: Math.random() > 0.5,
+      volumeDiscounts: Math.random() > 0.3,
+      yearlyFees: {
+        '10k_monthly': Math.floor(makerFee * 1000) * 12, // Yearly fees for $10K monthly volume
+        '50k_monthly': Math.floor(makerFee * 0.9 * 5000) * 12, // Yearly fees for $50K monthly volume
+        '100k_monthly': Math.floor(makerFee * 0.8 * 10000) * 12, // Yearly fees for $100K monthly volume
+      }
+    });
+  }
+  
+  return feeData;
+};
+
+// Generate market sentiment data
+export const generateMarketSentimentData = () => {
+  const sentimentData = [];
+  
+  for (let i = 0; i < 10; i++) {
+    const pairIndex = Math.floor(Math.random() * pairs.length);
+    const pair = pairs[pairIndex];
+    
+    sentimentData.push({
+      pair,
+      newsCount: Math.floor(Math.random() * 50) + 1, // 1-50 news articles
+      newsScore: Math.floor(Math.random() * 100) + 1, // 1-100 sentiment score
+      socialMentions: Math.floor(Math.random() * 1000) + 100, // 100-1100 social mentions
+      socialSentiment: Math.floor(Math.random() * 100) + 1, // 1-100 sentiment score
+      sentimentChange24h: (Math.random() * 20) - 10, // -10 to +10 sentiment change
+      unusualActivity: Math.random() > 0.7, // 30% chance of unusual activity
+      sentimentTrend: ['Improving', 'Declining', 'Stable'][Math.floor(Math.random() * 3)],
+      sentimentImpact: ['High', 'Medium', 'Low'][Math.floor(Math.random() * 3)],
+      priceCorrelation: (Math.random() * 2) - 1 // -1 to 1 correlation with price
+    });
+  }
+  
+  return sentimentData;
+};
+
+// Generate market inefficiency scores
+export const generateMarketInefficiencyScores = () => {
+  // Overall market inefficiency on a scale of 1-100
+  const overallScore = Math.floor(Math.random() * 30) + 20; // 20-50 range
+  
+  // Exchange-specific inefficiency scores
+  const exchangeScores = exchanges.slice(0, 12).map(exchange => ({
+    exchange: exchange.name,
+    inefficiencyScore: Math.floor(Math.random() * 50) + 10, // 10-60 range
+    arbitrageOpportunityCount: Math.floor(Math.random() * 20) + 1, // 1-20 opportunities
+    priceLagScore: Math.floor(Math.random() * 100) + 1, // 1-100 score
+    liquidityEfficiencyScore: Math.floor(Math.random() * 100) + 1, // 1-100 score
+    recommendedPairs: [
+      pairs[Math.floor(Math.random() * pairs.length)],
+      pairs[Math.floor(Math.random() * pairs.length)]
+    ]
+  }));
+  
+  // Pair-specific inefficiency scores
+  const pairScores = pairs.slice(0, 10).map(pair => ({
+    pair,
+    inefficiencyScore: Math.floor(Math.random() * 60) + 10, // 10-70 range
+    bestExchangePair: {
+      buy: exchanges[Math.floor(Math.random() * exchanges.length)].name,
+      sell: exchanges[Math.floor(Math.random() * exchanges.length)].name,
+    },
+    volatilityContribution: Math.floor(Math.random() * 100) + 1, // 1-100 score
+    marketDepthRatio: 0.5 + Math.random() * 1.5, // 0.5-2.0 ratio
+  }));
+  
+  return {
+    timestamp: new Date(),
+    overallScore,
+    exchangeScores,
+    pairScores,
+    marketCondition: overallScore > 40 ? 'High Inefficiency' : 
+                     overallScore > 25 ? 'Moderate Inefficiency' : 'Low Inefficiency',
+    inefficiencyTrend: ['Increasing', 'Decreasing', 'Stable'][Math.floor(Math.random() * 3)]
+  };
+};

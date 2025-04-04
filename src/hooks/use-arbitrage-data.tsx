@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from './use-toast';
 import { fetchArbitrageOpportunities } from '@/lib/api/cryptoDataApi';
@@ -164,7 +163,7 @@ export function useArbitrageData(
     // Use default exchanges if none selected
     const activeExchanges = exchanges.length > 0 
       ? exchanges 
-      : ['binance', 'coinbase', 'kraken', 'kucoin', 'gate_io'];
+      : ['binance', 'bitget', 'bybit', 'kucoin', 'gate_io', 'bitfinex', 'gemini', 'coinbase', 'kraken', 'poloniex', 'okx', 'ascendex', 'bitrue', 'htx', 'mexc_global'];
     
     // Define some base assets for opportunities
     const baseAssets = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOGE'];
@@ -231,7 +230,7 @@ export function useArbitrageData(
       });
     } else if (type === 'futures') {
       // Generate futures arbitrage opportunities
-      const futuresExchanges = ['FTX', 'Bybit', 'Binance', 'Coinbase', 'Kraken'];
+      const futuresExchanges = ['Binance', 'Bybit', 'OKX', 'Coinbase', 'Kraken'];
       
       // Generate for key assets
       baseAssets.slice(0, 3).forEach((asset, index) => {

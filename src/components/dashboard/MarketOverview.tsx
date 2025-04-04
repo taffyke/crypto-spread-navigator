@@ -1,7 +1,6 @@
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, RefreshCw, AlertTriangle } from 'lucide-react';
 import { fetchCryptoMarketData, getFallbackTickerData } from '@/lib/api/cryptoDataApi';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
@@ -12,14 +11,18 @@ interface CryptoMarketData {
   symbol: string;
   price: number;
   change24h: number;
+  logoUrl?: string; // Add logo URL for coin icons
 }
 
 const MarketOverview = () => {
   // Define constants outside of any hooks
   const coinPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'];
-  const exchanges = ['binance']; // Use Binance as the reference exchange for market data
+  const exchanges = ['binance', 'coinbase', 'kraken', 'kucoin']; // Use multiple exchanges for reliability
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
   
-  // Use React Query for fallback market data - must be called before other hooks
+  // Use React Query for fallback market data
   const { 
     data: apiMarketData = [], 
     isLoading: isApiLoading,
@@ -30,74 +33,137 @@ const MarketOverview = () => {
     queryFn: async ({ signal }) => {
       return await fetchCryptoMarketData(signal);
     },
-    refetchInterval: 60000, // Refresh every 1 minute
-    staleTime: 30000, // Consider data stale after 30 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 15000, // Consider data stale after 15 seconds
     retry: 3,
     refetchOnWindowFocus: true,
   });
   
-  // Create a single WebSocket connection instead of multiple ones
+  // Create WebSocket connections to multiple exchanges
   const { 
     data: wsTickerData,
     isConnected,
-    error: wsError
+    error: wsError,
+    reconnect
   } = useMultiTickerWebSocket(
     exchanges,
-    'BTC/USDT', // Use a primary pair - we'll process all pairs on the backend
-    true
+    coinPairs.join(','),
+    true // Always start connected, we'll handle reconnection logic below
   );
+  
+  // Automatically reconnect WebSocket if it fails
+  useEffect(() => {
+    if (wsError) {
+      console.error('WebSocket error in MarketOverview:', wsError);
+      
+      // Only attempt reconnect if we haven't exceeded max attempts
+      if (reconnectAttempts.current < maxReconnectAttempts) {
+        const timer = setTimeout(() => {
+          console.log(`Attempting to reconnect market data WebSocket (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})...`);
+          reconnectAttempts.current += 1;
+          reconnect();
+        }, 3000 + (reconnectAttempts.current * 1000)); // Increasing backoff
+        
+        return () => clearTimeout(timer);
+      } else {
+        console.log('Max reconnection attempts reached, falling back to API data');
+        // Reset counter after some time to allow future reconnection attempts
+        const resetTimer = setTimeout(() => {
+          reconnectAttempts.current = 0;
+        }, 60000);
+        
+        return () => clearTimeout(resetTimer);
+      }
+    } else if (isConnected && Object.values(isConnected).some(Boolean)) {
+      // Reset attempts when successfully connected
+      reconnectAttempts.current = 0;
+    }
+  }, [wsError, reconnect, isConnected]);
   
   // Process WebSocket data into market data when available
   const wsMarketData = useMemo(() => {
-    if (!wsTickerData || !wsTickerData.binance) {
-      // If WebSocket data is not available, create fallback data for each coin pair
-      return coinPairs.map(pair => {
-        const symbol = pair.split('/')[0];
-        const fallbackData = getFallbackTickerData('binance', pair);
-        return {
-          symbol,
-          price: fallbackData.price,
-          change24h: fallbackData.changePercent
-        };
-      });
+    if (!wsTickerData || Object.keys(wsTickerData).length === 0) {
+      // If WebSocket data is not available, return empty array
+      return [];
     }
     
     // Extract data from WebSocket responses and format it
     const marketData: CryptoMarketData[] = [];
     
-    // Directly use WSData if available
-    if (wsTickerData.binance) {
-      // For each supported coin pair, create a market data entry
-      coinPairs.forEach(pair => {
-        const symbol = pair.split('/')[0];
-        const tickerKey = `${symbol.toLowerCase()}usdt`;
+    // Try all connected exchanges, prioritizing binance then coinbase
+    const availableExchanges = Object.keys(wsTickerData).filter(ex => 
+      wsTickerData[ex] && Object.keys(wsTickerData[ex]).length > 0
+    );
+    
+    if (availableExchanges.length === 0) return [];
+    
+    // For each coin pair, find data from the first available exchange
+    coinPairs.forEach(pair => {
+      const [baseCurrency, quoteCurrency] = pair.split('/');
+      const symbol = baseCurrency;
+      const tickerKey = baseCurrency.toLowerCase() + quoteCurrency.toLowerCase();
+      
+      // Try to find this pair in any connected exchange
+      let pairData = null;
+      for (const exchange of availableExchanges) {
+        if (wsTickerData[exchange] && (
+            wsTickerData[exchange][tickerKey] || 
+            wsTickerData[exchange][pair] ||
+            wsTickerData[exchange][pair.replace('/', '')] ||
+            wsTickerData[exchange][pair.toLowerCase().replace('/', '')]
+        )) {
+          const key = wsTickerData[exchange][tickerKey] ? tickerKey :
+                     wsTickerData[exchange][pair] ? pair :
+                     wsTickerData[exchange][pair.replace('/', '')] ? pair.replace('/', '') :
+                     pair.toLowerCase().replace('/', '');
+                     
+          pairData = {
+            exchange,
+            data: wsTickerData[exchange][key]
+          };
+          break;
+        }
+      }
+      
+      if (pairData) {
+        const tickerData = pairData.data;
+        const price = parseFloat(tickerData.price || tickerData.lastPrice || 0);
+        const change24h = parseFloat(tickerData.priceChangePercent || tickerData.changePercent || 0);
         
-        if (wsTickerData.binance[tickerKey]) {
-          const tickerData = wsTickerData.binance[tickerKey];
+        if (!isNaN(price)) {
           marketData.push({
             symbol,
-            price: tickerData.price || tickerData.lastPrice || 0,
-            change24h: tickerData.priceChangePercent || tickerData.changePercent || 0
-          });
-        } else {
-          // If specific pair data is missing, use fallback
-          const fallbackData = getFallbackTickerData('binance', pair);
-          marketData.push({
-            symbol,
-            price: fallbackData.price,
-            change24h: fallbackData.changePercent
+            price,
+            change24h,
+            logoUrl: `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
           });
         }
-      });
-    }
+      } else {
+        // If no real-time data found for this pair, use fallback
+        const fallbackData = getFallbackTickerData('binance', pair);
+        marketData.push({
+          symbol,
+          price: fallbackData.price,
+          change24h: fallbackData.changePercent,
+          logoUrl: `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
+        });
+      }
+    });
     
     return marketData;
   }, [wsTickerData, coinPairs]);
   
+  // Update lastUpdated timestamp whenever we get new data
+  useEffect(() => {
+    if (wsMarketData.length > 0 || apiMarketData.length > 0) {
+      setLastUpdated(new Date());
+    }
+  }, [wsMarketData, apiMarketData]);
+  
   // Determine which data source to use: WebSocket or API
   const marketData = useMemo(() => {
     if (wsMarketData && wsMarketData.length > 0) {
-      console.log('Using real-time or fallback market data');
+      console.log('Using real-time WebSocket market data');
       return wsMarketData;
     }
     
@@ -106,9 +172,18 @@ const MarketOverview = () => {
   }, [wsMarketData, apiMarketData]);
   
   const isLoading = (!marketData || marketData.length === 0) && isApiLoading;
+  const hasError = wsError && reconnectAttempts.current >= maxReconnectAttempts && (!marketData || marketData.length === 0);
   
   const handleRefresh = () => {
+    // Reset the reconnect attempts
+    reconnectAttempts.current = 0;
+    
+    // Try to reconnect the WebSocket first
+    reconnect();
+    
+    // Also refresh API data as backup
     refetch();
+    
     toast({
       title: "Refreshing Market Data",
       description: "Fetching latest cryptocurrency prices."
@@ -119,14 +194,29 @@ const MarketOverview = () => {
     <Card className="bg-slate-800 border-slate-700 text-white">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center">
-          <CardTitle className="text-sm md:text-base">Market Overview</CardTitle>
-          <button 
-            onClick={handleRefresh}
-            disabled={isFetching}
-            className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm md:text-base">Market Overview</CardTitle>
+            {lastUpdated && (
+              <span className="text-xs text-slate-400">
+                Updated: {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {hasError && (
+              <span className="text-xs text-red-400 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Connection error
+              </span>
+            )}
+            <button 
+              onClick={handleRefresh}
+              disabled={isFetching}
+              className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -157,7 +247,23 @@ const MarketOverview = () => {
                     className="border-b border-slate-700/70 hover:bg-slate-700/30 transition-colors"
                   >
                     <td className="py-2 px-3 md:px-4">
-                      <div className="font-medium text-white">{coin.symbol}</div>
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={coin.logoUrl || `/crypto-icons/${coin.symbol.toLowerCase()}.svg`}
+                          alt={coin.symbol}
+                          className="w-5 h-5"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src = `/crypto-icons/${coin.symbol.toLowerCase()}.svg`;
+                            target.onerror = () => {
+                              target.onerror = null;
+                              target.src = '/crypto-icons/generic.svg';
+                            };
+                          }}
+                        />
+                        <span className="font-medium text-white">{coin.symbol}</span>
+                      </div>
                     </td>
                     <td className="py-2 px-3 md:px-4 text-right">
                       ${typeof coin.price === 'number' ? coin.price.toFixed(2) : '0.00'}
