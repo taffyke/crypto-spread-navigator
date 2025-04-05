@@ -1,3 +1,4 @@
+
 import { EXCHANGE_CONFIGS } from '@/lib/exchanges/exchangeApi';
 import { apiCache } from '@/lib/exchanges/exchangeApi';
 import { notificationManager } from '@/lib/notifications/notificationSystem';
@@ -145,7 +146,7 @@ export const fetchMultiExchangeTickerData = async (
           `Could not fetch ${symbol} data from ${exchange}`,
           'system',
           'medium',
-          'trading'
+          'system'
         );
       }
     }
@@ -445,7 +446,7 @@ export const fetchArbitrageOpportunities = async (
         'Triangular arbitrage calculation requires special API access. Implementing real calculation would require additional setup.',
         'arbitrage_opportunity',
         'medium',
-        'trading'
+        'scanner'
       );
 
       // Return empty for now
@@ -459,7 +460,7 @@ export const fetchArbitrageOpportunities = async (
         'Futures arbitrage calculation requires futures market API access. Implementing real calculation would require additional setup.',
         'arbitrage_opportunity',
         'medium',
-        'trading'
+        'scanner'
       );
       
       // Return empty for now
