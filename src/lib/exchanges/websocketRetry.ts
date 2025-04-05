@@ -1,3 +1,4 @@
+
 import { toast } from '@/hooks/use-toast';
 
 export interface WebSocketRetryConfig {
@@ -7,15 +8,17 @@ export interface WebSocketRetryConfig {
   jitter: boolean;
   connectionTimeout: number;
   pingInterval: number;
+  reconnectCooldown: number;  // Added reconnect cooldown parameter
 }
 
 export const defaultRetryConfig: WebSocketRetryConfig = {
-  maxRetries: 5,
+  maxRetries: 15,           // Increased from 5 to 15
   initialBackoff: 1000,
   maxBackoff: 30000,
   jitter: true,
   connectionTimeout: 15000,
-  pingInterval: 30000,
+  pingInterval: 15000,      // Reduced from 30s to 15s for more frequent health checks
+  reconnectCooldown: 3000,  // New param to prevent connection flooding
 };
 
 export class WebSocketRetryManager {
@@ -24,6 +27,7 @@ export class WebSocketRetryManager {
   private retryTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private pingIntervals: Map<string, NodeJS.Timeout> = new Map();
   private connectionTimers: Map<string, NodeJS.Timeout> = new Map();
+  private lastReconnectTime: Map<string, number> = new Map(); // Track last reconnect attempt
   private config: WebSocketRetryConfig;
   private activeConnections: Map<string, WebSocket> = new Map();
 
@@ -43,7 +47,18 @@ export class WebSocketRetryManager {
     
     this.setConnectionTimeout(connectionKey);
     
-    this.setupPingInterval(connectionKey, ws);
+    // Only set up ping interval when connection is open
+    if (ws.readyState === WebSocket.OPEN) {
+      this.setupPingInterval(connectionKey, ws);
+    } else {
+      // Set up event listener to establish ping when connection opens
+      const openListener = () => {
+        this.setupPingInterval(connectionKey, ws);
+        ws.removeEventListener('open', openListener);
+      };
+      
+      ws.addEventListener('open', openListener);
+    }
   }
   
   private setConnectionTimeout(connectionKey: string): void {
@@ -56,6 +71,13 @@ export class WebSocketRetryManager {
         console.warn(`Connection to ${connectionKey} timed out after ${this.config.connectionTimeout}ms`);
         ws.close();
         this.activeConnections.delete(connectionKey);
+        
+        // Show toast for connection timeout
+        toast({
+          title: "Connection Timeout",
+          description: `Connection to ${connectionKey.replace('ws_', '')} timed out. Attempting to reconnect...`,
+          variant: "destructive",
+        });
       }
     }, this.config.connectionTimeout);
     
@@ -127,12 +149,27 @@ export class WebSocketRetryManager {
     reconnectCallback: () => void
   ): boolean {
     const currentRetries = this.retryCount.get(connectionKey) || 0;
+    const now = Date.now();
+    const lastReconnect = this.lastReconnectTime.get(connectionKey) || 0;
+    
+    // Apply reconnect cooldown to prevent connection flooding
+    if (now - lastReconnect < this.config.reconnectCooldown) {
+      console.log(`Reconnect attempt for ${connectionKey} throttled (in cooldown period)`);
+      
+      // Schedule reconnect after cooldown expires
+      const timeoutId = setTimeout(() => {
+        this.handleConnectionFailure(connectionKey, reconnectCallback);
+      }, this.config.reconnectCooldown);
+      
+      this.retryTimeouts.set(connectionKey, timeoutId);
+      return true;
+    }
     
     if (currentRetries >= this.config.maxRetries) {
       console.warn(`WebSocket connection to ${connectionKey} failed after ${currentRetries} retries.`);
       toast({
         title: "WebSocket Connection Failed",
-        description: `Connection to ${connectionKey} failed after multiple attempts. Using API fallback data.`,
+        description: `Connection to ${connectionKey.replace('ws_', '')} failed after multiple attempts. Using API fallback data.`,
         variant: "destructive",
       });
       
@@ -144,9 +181,11 @@ export class WebSocketRetryManager {
     
     const nextRetryCount = currentRetries + 1;
     this.retryCount.set(connectionKey, nextRetryCount);
+    this.lastReconnectTime.set(connectionKey, now);
     
+    // Use exponential backoff with jitter
     const backoff = Math.min(
-      this.config.initialBackoff * Math.pow(2, currentRetries),
+      this.config.initialBackoff * Math.pow(1.5, currentRetries),
       this.config.maxBackoff
     );
     
@@ -203,6 +242,7 @@ export class WebSocketRetryManager {
     this.pingIntervals.clear();
     this.connectionTimers.clear();
     this.retryCount.clear();
+    this.lastReconnectTime.clear();
   }
 }
 

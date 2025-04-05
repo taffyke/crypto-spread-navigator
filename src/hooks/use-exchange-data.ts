@@ -15,6 +15,7 @@ interface UseExchangeDataOptions {
   exchanges?: string[];
   refreshInterval?: number;
   fallbackToApi?: boolean;
+  retryWebSocketInterval?: number;
 }
 
 interface ExchangeTickerResponse {
@@ -33,12 +34,15 @@ export function useExchangeData({
   symbols,
   exchanges = SUPPORTED_EXCHANGES,
   refreshInterval = 30000,
-  fallbackToApi = true
+  fallbackToApi = true,
+  retryWebSocketInterval = 30000 // Default 30 seconds between connection attempts
 }: UseExchangeDataOptions): ExchangeTickerResponse {
   const [reconnectAttempts, setReconnectAttempts] = useState<Record<string, number>>({});
-  const maxReconnectAttempts = 5;
+  const maxReconnectAttempts = 10; // Increased from 5 to 10
   const [lastReconnectTime, setLastReconnectTime] = useState<number>(0);
-  const reconnectCooldown = 10000; // 10 seconds between manual reconnect attempts
+  const reconnectCooldown = 5000; // 5 seconds between manual reconnect attempts
+  const [connectionHealthy, setConnectionHealthy] = useState<boolean>(true);
+  const [dataFreshness, setDataFreshness] = useState<Record<string, number>>({});
 
   // Use WebSocket for real-time data
   const {
@@ -59,13 +63,13 @@ export function useExchangeData({
     refetch: refetchApiData
   } = useQuery({
     queryKey: ['multiExchangeTickerData', exchanges.join('-'), symbols.join('-')],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const results: Record<string, Record<string, TickerData>> = {};
       
       // Create a map of exchange -> symbol -> data
       for (const symbol of symbols) {
         try {
-          const symbolData = await fetchMultiExchangeTickerData(symbol, exchanges);
+          const symbolData = await fetchMultiExchangeTickerData(symbol, exchanges, signal);
           
           for (const [exchange, tickerData] of Object.entries(symbolData)) {
             if (!results[exchange]) {
@@ -82,11 +86,25 @@ export function useExchangeData({
       return results;
     },
     enabled: fallbackToApi,
-    refetchInterval: wsError ? refreshInterval : false, // Only auto-refresh API if WebSocket fails
+    refetchInterval: wsError || !connectionHealthy ? refreshInterval : false,
     staleTime: refreshInterval / 2,
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
+
+  // Update data freshness timestamps
+  useEffect(() => {
+    if (wsData) {
+      const now = Date.now();
+      const updatedFreshness: Record<string, number> = { ...dataFreshness };
+      
+      for (const exchange of Object.keys(wsData)) {
+        updatedFreshness[exchange] = now;
+      }
+      
+      setDataFreshness(updatedFreshness);
+    }
+  }, [wsData]);
 
   // Safe reconnect function with cooldown protection
   const safeReconnect = useCallback(() => {
@@ -166,6 +184,38 @@ export function useExchangeData({
     }
   }, [wsError, isConnected, reconnectAttempts, maxReconnectAttempts, fallbackToApi, refetchApiData, safeReconnect]);
 
+  // Continually check data freshness and connection health
+  useEffect(() => {
+    const dataFreshnessInterval = setInterval(() => {
+      const now = Date.now();
+      let allFresh = true;
+      
+      // If we have dataFreshness timestamps, check if they're stale
+      if (Object.keys(dataFreshness).length > 0) {
+        for (const exchange of exchanges) {
+          // If timestamp exists and is older than 3x refresh interval, mark as stale
+          if (dataFreshness[exchange] && (now - dataFreshness[exchange] > refreshInterval * 3)) {
+            allFresh = false;
+            break;
+          }
+        }
+      }
+      
+      if (!allFresh && connectionHealthy) {
+        console.log("Data freshness check failed, marking connection as unhealthy");
+        setConnectionHealthy(false);
+        
+        // If connections appear stale, try to reconnect
+        safeReconnect();
+      } else if (allFresh && !connectionHealthy) {
+        console.log("Data is fresh again, marking connection as healthy");
+        setConnectionHealthy(true);
+      }
+    }, refreshInterval);
+    
+    return () => clearInterval(dataFreshnessInterval);
+  }, [dataFreshness, exchanges, refreshInterval, connectionHealthy, safeReconnect]);
+
   // Determine which data source to use (WebSocket or API)
   const finalData = useMemo(() => {
     const mergedData: Record<string, Record<string, TickerData>> = {};
@@ -213,11 +263,30 @@ export function useExchangeData({
       if (!hasConnectedExchanges && fallbackToApi) {
         console.log("No connected exchanges detected, attempting to reconnect...");
         safeReconnect();
+        
+        // Also refresh API data as a fallback
+        refetchApiData();
       }
-    }, 60000); // Check every minute
+    }, retryWebSocketInterval); // Check based on retry interval parameter
     
     return () => clearInterval(connectionCheckInterval);
-  }, [isConnected, fallbackToApi, safeReconnect]);
+  }, [isConnected, fallbackToApi, safeReconnect, refetchApiData, retryWebSocketInterval]);
+  
+  // Automatic refresh on page visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, refreshing connections');
+        safeReconnect();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [safeReconnect]);
   
   // Refresh function
   const refresh = useCallback(() => {
