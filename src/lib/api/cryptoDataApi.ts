@@ -143,7 +143,7 @@ export const fetchMultiExchangeTickerData = async (
         notificationManager.notify(
           'Exchange Data Error',
           `Could not fetch ${symbol} data from ${exchange}`,
-          'trading',
+          'system',
           'medium',
           'trading'
         );
@@ -443,7 +443,7 @@ export const fetchArbitrageOpportunities = async (
       notificationManager.notify(
         'Triangular Arbitrage',
         'Triangular arbitrage calculation requires special API access. Implementing real calculation would require additional setup.',
-        'trading',
+        'arbitrage_opportunity',
         'medium',
         'trading'
       );
@@ -457,7 +457,7 @@ export const fetchArbitrageOpportunities = async (
       notificationManager.notify(
         'Futures Arbitrage',
         'Futures arbitrage calculation requires futures market API access. Implementing real calculation would require additional setup.',
-        'trading',
+        'arbitrage_opportunity',
         'medium',
         'trading'
       );
