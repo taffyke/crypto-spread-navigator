@@ -1,3 +1,4 @@
+
 import { EXCHANGE_CONFIGS } from '@/lib/exchanges/exchangeApi';
 import { apiCache } from '@/lib/exchanges/exchangeApi';
 import { notificationManager } from '@/lib/notifications/notificationSystem';
@@ -131,13 +132,32 @@ export const fetchMultiExchangeTickerData = async (
       results[exchange] = data;
     } catch (error) {
       console.error(`Error fetching ${symbol} data from ${exchange}:`, error);
-      // Use fallback data on error
-      results[exchange] = getFallbackTickerData(exchange, symbol);
+      
+      // Instead of using fallback data, attempt to retry once
+      try {
+        console.log(`Retrying ${exchange} ticker data fetch for ${symbol}...`);
+        const data = await fetchExchangeTickerData(exchange, symbol, true);
+        results[exchange] = data;
+      } catch (retryError) {
+        console.error(`Retry failed for ${exchange}:`, retryError);
+        // We don't add this exchange to results if we can't get real data
+        notificationManager.notify(
+          'Exchange Data Error',
+          `Could not fetch ${symbol} data from ${exchange}`,
+          'error',
+          'medium',
+          'trading'
+        );
+      }
     }
   });
   
   // Wait for all requests to complete
   await Promise.allSettled(promises);
+  
+  if (Object.keys(results).length === 0) {
+    throw new Error(`Failed to fetch ticker data for ${symbol} from any exchange`);
+  }
   
   // Cache the results
   apiCache.set(cacheKey, results);
@@ -148,31 +168,147 @@ export const fetchMultiExchangeTickerData = async (
 // Fetch ticker data from a single exchange
 export const fetchExchangeTickerData = async (
   exchange: string,
-  symbol: string
+  symbol: string,
+  isRetry: boolean = false
 ): Promise<TickerData> => {
   const cacheKey = `ticker_${exchange}_${symbol}`;
   
   // Check cache first
   const cachedData = apiCache.get(cacheKey);
-  if (cachedData) {
+  if (cachedData && !isRetry) {
     return cachedData;
   }
   
-  // In a real implementation, this would make API calls to exchange endpoints
-  // For now, return simulated data
-  // This is where exchange-specific API code would go
+  // This is where exchange-specific API calls would go in a real production app
+  // For this demo, we'll implement a better approach that uses actual exchange APIs
+  // where possible and degrades gracefully
   
   try {
-    // Simulate API call latency
-    await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
+    // Get the exchange config
+    const exchangeConfig = EXCHANGE_CONFIGS[exchange];
+    if (!exchangeConfig) {
+      throw new Error(`Exchange ${exchange} not supported`);
+    }
     
-    // Get simulated data
-    const data = getFallbackTickerData(exchange, symbol);
+    // Replace with actual API integration - examples for some major exchanges:
+    let tickerData: TickerData;
+    
+    if (exchange === 'binance') {
+      // For Binance, use public API
+      const response = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol.replace('/', '')}`);
+      
+      if (!response.ok) {
+        throw new Error(`Binance API error: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      tickerData = {
+        symbol,
+        price: parseFloat(data.lastPrice),
+        bidPrice: parseFloat(data.bidPrice),
+        askPrice: parseFloat(data.askPrice),
+        volume: parseFloat(data.volume),
+        timestamp: data.closeTime,
+        exchange,
+        high24h: parseFloat(data.highPrice),
+        low24h: parseFloat(data.lowPrice),
+        change24h: parseFloat(data.priceChange),
+        changePercent24h: parseFloat(data.priceChangePercent)
+      };
+    }
+    else if (exchange === 'coinbase') {
+      // For Coinbase, use public API
+      const formattedSymbol = symbol.replace('/', '-');
+      const response = await fetch(`https://api.exchange.coinbase.com/products/${formattedSymbol}/ticker`);
+      
+      if (!response.ok) {
+        throw new Error(`Coinbase API error: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Also get 24h stats
+      const statsResponse = await fetch(`https://api.exchange.coinbase.com/products/${formattedSymbol}/stats`);
+      const stats = await statsResponse.json();
+      
+      tickerData = {
+        symbol,
+        price: parseFloat(data.price),
+        bidPrice: parseFloat(data.bid),
+        askPrice: parseFloat(data.ask),
+        volume: parseFloat(stats.volume),
+        timestamp: new Date(data.time).getTime(),
+        exchange,
+        high24h: parseFloat(stats.high),
+        low24h: parseFloat(stats.low),
+        change24h: parseFloat(stats.last) - parseFloat(stats.open),
+        changePercent24h: ((parseFloat(stats.last) - parseFloat(stats.open)) / parseFloat(stats.open)) * 100
+      };
+    }
+    else if (exchange === 'kraken') {
+      // For Kraken, use public API
+      const formattedSymbol = symbol.replace('/', '');
+      const response = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${formattedSymbol}`);
+      
+      if (!response.ok) {
+        throw new Error(`Kraken API error: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error && data.error.length > 0) {
+        throw new Error(`Kraken API error: ${data.error[0]}`);
+      }
+      
+      const tickerInfo = data.result[Object.keys(data.result)[0]];
+      
+      tickerData = {
+        symbol,
+        price: parseFloat(tickerInfo.c[0]),
+        bidPrice: parseFloat(tickerInfo.b[0]),
+        askPrice: parseFloat(tickerInfo.a[0]),
+        volume: parseFloat(tickerInfo.v[1]),
+        timestamp: Date.now(),
+        exchange,
+        high24h: parseFloat(tickerInfo.h[1]),
+        low24h: parseFloat(tickerInfo.l[1]),
+        // Kraken doesn't provide these directly
+        change24h: 0,
+        changePercent24h: 0
+      };
+    }
+    else {
+      // For other exchanges, use a proxy or aggregator service 
+      // that provides a unified interface across multiple exchanges
+      const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol.split('/')[0].toLowerCase()}&vs_currencies=${symbol.split('/')[1].toLowerCase()}&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true`);
+      
+      if (!response.ok) {
+        throw new Error(`CoinGecko API error: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const baseCurrency = symbol.split('/')[0].toLowerCase();
+      const quoteCurrency = symbol.split('/')[1].toLowerCase();
+      
+      if (!data[baseCurrency]) {
+        throw new Error(`No data available for ${symbol}`);
+      }
+      
+      tickerData = {
+        symbol,
+        price: data[baseCurrency][quoteCurrency] || 0,
+        volume: data[baseCurrency][`${quoteCurrency}_24h_vol`] || 0,
+        timestamp: data[baseCurrency].last_updated_at * 1000 || Date.now(),
+        exchange,
+        changePercent24h: data[baseCurrency][`${quoteCurrency}_24h_change`] || 0
+      };
+    }
     
     // Cache the result
-    apiCache.set(cacheKey, data);
+    apiCache.set(cacheKey, tickerData);
     
-    return data;
+    return tickerData;
   } catch (error) {
     console.error(`Error fetching ticker data for ${symbol} from ${exchange}:`, error);
     throw error;
@@ -196,7 +332,7 @@ export const fetchArbitrageOpportunities = async (
   }
   
   try {
-    // For direct arbitrage, fetch multi-exchange data for common pairs
+    // For direct arbitrage, fetch real multi-exchange data
     if (arbitrageType === 'direct') {
       const commonPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT'];
       const opportunities: any[] = [];
@@ -213,13 +349,14 @@ export const fetchArbitrageOpportunities = async (
           ? { signal: new AbortController().signal } // This doesn't actually combine them, but it's a placeholder
           : { signal: controller.signal };
         
-        // Fetch data for each pair
+        // Fetch real data for each pair
         for (const pair of commonPairs) {
           // Check if aborted
           if (signal?.aborted || controller.signal.aborted) {
             break;
           }
           
+          // Get real ticker data from all exchanges
           const tickerData = await fetchMultiExchangeTickerData(pair, SUPPORTED_EXCHANGES);
           
           // Find arbitrage opportunities between exchanges
@@ -242,8 +379,8 @@ export const fetchArbitrageOpportunities = async (
               // Find the better direction
               if (spread1 > minSpread) {
                 const volume = Math.min(
-                  tickerData[buyExchange].volume, 
-                  tickerData[sellExchange].volume
+                  tickerData[buyExchange].volume || 0, 
+                  tickerData[sellExchange].volume || 0
                 );
                 
                 if (volume >= minVolume) {
@@ -264,8 +401,8 @@ export const fetchArbitrageOpportunities = async (
                 }
               } else if (spread2 > minSpread) {
                 const volume = Math.min(
-                  tickerData[buyExchange].volume, 
-                  tickerData[sellExchange].volume
+                  tickerData[buyExchange].volume || 0, 
+                  tickerData[sellExchange].volume || 0
                 );
                 
                 if (volume >= minVolume) {
@@ -299,24 +436,38 @@ export const fetchArbitrageOpportunities = async (
       apiCache.set(cacheKey, opportunities);
       
       return opportunities;
-    } else {
-      // For triangular and futures arbitrage, return simulated data for now
-      // In a real implementation, this would fetch real data and compute arbitrage
-      await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500));
+    } else if (arbitrageType === 'triangular') {
+      // For triangular arbitrage, we need to implement a real price calculation
+      // This requires fetching prices for multiple trading pairs and calculating triangular paths
+      // This is complex and would require significant API calls - we'd implement real data fetching here
+
+      notificationManager.notify(
+        'Triangular Arbitrage',
+        'Triangular arbitrage calculation requires special API access. Implementing real calculation would require additional setup.',
+        'info',
+        'medium',
+        'trading'
+      );
+
+      // Return empty for now
+      return [];
+    } else if (arbitrageType === 'futures') {
+      // For futures arbitrage, we need to fetch both spot and futures prices
+      // This would require special API access for futures markets
       
-      // Simulated data
-      const opportunities = generateSimulatedArbitrageOpportunities(
-        arbitrageType,
-        20, // Generate 20 opportunities
-        minSpread,
-        minVolume
+      notificationManager.notify(
+        'Futures Arbitrage',
+        'Futures arbitrage calculation requires futures market API access. Implementing real calculation would require additional setup.',
+        'info',
+        'medium',
+        'trading'
       );
       
-      // Cache the result (short TTL)
-      apiCache.set(cacheKey, opportunities);
-      
-      return opportunities;
+      // Return empty for now
+      return [];
     }
+    
+    return [];
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       console.log('Arbitrage opportunity fetch aborted');
@@ -327,126 +478,6 @@ export const fetchArbitrageOpportunities = async (
     throw error;
   }
 };
-
-// Generate simulated arbitrage opportunities
-function generateSimulatedArbitrageOpportunities(
-  type: 'direct' | 'triangular' | 'futures',
-  count: number,
-  minSpread: number,
-  minVolume: number
-): any[] {
-  const opportunities = [];
-  const exchanges = SUPPORTED_EXCHANGES;
-  
-  for (let i = 0; i < count; i++) {
-    const spreadPercentage = minSpread + Math.random() * 3; // minSpread to minSpread+3%
-    
-    if (type === 'direct') {
-      // Direct arbitrage between two exchanges
-      const pairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT'];
-      const pair = pairs[Math.floor(Math.random() * pairs.length)];
-      
-      // Select random exchanges
-      const buyExchangeIndex = Math.floor(Math.random() * exchanges.length);
-      let sellExchangeIndex;
-      do {
-        sellExchangeIndex = Math.floor(Math.random() * exchanges.length);
-      } while (sellExchangeIndex === buyExchangeIndex);
-      
-      const buyExchange = exchanges[buyExchangeIndex];
-      const sellExchange = exchanges[sellExchangeIndex];
-      
-      // Generate prices
-      const basePrice = getFallbackTickerData(buyExchange, pair).price;
-      const buyPrice = basePrice;
-      const sellPrice = basePrice * (1 + spreadPercentage / 100);
-      
-      opportunities.push({
-        id: `${buyExchange}-${sellExchange}-${pair}-${Date.now()}`,
-        pair,
-        buyExchange,
-        sellExchange,
-        buyPrice,
-        sellPrice,
-        spreadPercentage,
-        timestamp: new Date(),
-        volume24h: minVolume + Math.random() * minVolume * 10,
-        riskLevel: spreadPercentage > 2 ? 'low' : spreadPercentage > 1 ? 'medium' : 'high',
-        recommendedNetworks: ['ETH', 'BSC'],
-        type: 'direct'
-      });
-    } else if (type === 'triangular') {
-      // Triangular arbitrage within a single exchange
-      const exchange = exchanges[Math.floor(Math.random() * exchanges.length)];
-      const combinations = [
-        { assets: 'BTC/ETH/USDT', steps: 3 },
-        { assets: 'ETH/SOL/USDT', steps: 3 },
-        { assets: 'BNB/BTC/USDT', steps: 3 }
-      ];
-      const combo = combinations[Math.floor(Math.random() * combinations.length)];
-      
-      // Generate a price
-      const basePrice = 1000 / (i + 1);
-      
-      opportunities.push({
-        id: `tri-${exchange}-${combo.assets}-${Date.now()}`,
-        pair: combo.assets,
-        exchange,
-        buyExchange: exchange,
-        sellExchange: exchange,
-        buyPrice: basePrice,
-        sellPrice: basePrice * (1 + spreadPercentage/100),
-        spreadPercentage,
-        timestamp: new Date(),
-        volume24h: minVolume + Math.random() * minVolume * 5,
-        riskLevel: spreadPercentage > 2 ? 'low' : spreadPercentage > 1 ? 'medium' : 'high',
-        recommendedNetworks: ['ETH', 'BSC'],
-        type: 'triangular',
-        steps: combo.steps
-      });
-    } else if (type === 'futures') {
-      // Futures arbitrage between spot and futures
-      const pairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
-      const pair = pairs[Math.floor(Math.random() * pairs.length)];
-      const futuresPair = `${pair.split('/')[0]}-PERP`;
-      
-      // Select random exchanges
-      const spotExchangeIndex = Math.floor(Math.random() * exchanges.length);
-      let futuresExchangeIndex;
-      do {
-        futuresExchangeIndex = Math.floor(Math.random() * exchanges.length);
-      } while (futuresExchangeIndex === spotExchangeIndex);
-      
-      const spotExchange = exchanges[spotExchangeIndex];
-      const futuresExchange = exchanges[futuresExchangeIndex];
-      
-      // Generate prices
-      const basePrice = getFallbackTickerData(spotExchange, pair).price;
-      const spotPrice = basePrice;
-      const futuresPrice = basePrice * (1 + spreadPercentage / 100);
-      
-      opportunities.push({
-        id: `fut-${spotExchange}-${futuresExchange}-${pair}-${Date.now()}`,
-        pair: futuresPair,
-        spotPair: pair,
-        spotExchange,
-        futuresExchange,
-        buyExchange: spotExchange,
-        sellExchange: futuresExchange,
-        buyPrice: spotPrice,
-        sellPrice: futuresPrice,
-        spreadPercentage,
-        timestamp: new Date(),
-        volume24h: minVolume + Math.random() * minVolume * 8,
-        riskLevel: 'high', // Futures always higher risk
-        recommendedNetworks: ['ETH'],
-        type: 'futures'
-      });
-    }
-  }
-  
-  return opportunities.sort((a, b) => b.spreadPercentage - a.spreadPercentage);
-}
 
 // Interface for CryptoMarketData
 export interface CryptoMarketData {
@@ -467,25 +498,31 @@ export const fetchCryptoMarketData = async (signal?: AbortSignal): Promise<Crypt
   }
   
   try {
-    // In a real implementation, this would make API calls
-    // For now, simulate API call with some delay
-    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
-    
     // Define the coins we want to include
     const coinPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'];
     
-    // Generate simulated market data for each coin
+    // Use CoinGecko API to get market data for multiple coins in one request
+    const coinIds = coinPairs.map(pair => pair.split('/')[0].toLowerCase()).join(',');
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds}&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h`,
+      { signal }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`CoinGecko API error: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Generate market data for each coin
     const marketData: CryptoMarketData[] = [];
     
-    for (const pair of coinPairs) {
-      const [symbol] = pair.split('/');
-      const fallbackData = getFallbackTickerData('binance', pair);
-      
+    for (const coin of data) {
       marketData.push({
-        symbol,
-        price: fallbackData.price,
-        change24h: fallbackData.changePercent24h || 0,
-        logoUrl: `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
+        symbol: coin.symbol.toUpperCase(),
+        price: coin.current_price,
+        change24h: coin.price_change_percentage_24h || 0,
+        logoUrl: coin.image
       });
     }
     
@@ -495,6 +532,38 @@ export const fetchCryptoMarketData = async (signal?: AbortSignal): Promise<Crypt
     return marketData;
   } catch (error) {
     console.error('Error fetching crypto market data:', error);
+    
+    // As a fallback, try to get data from our exchange APIs
+    try {
+      const coinPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'];
+      const marketData: CryptoMarketData[] = [];
+      
+      for (const pair of coinPairs) {
+        const [symbol] = pair.split('/');
+        try {
+          // Try to get data from a reliable exchange like Binance
+          const tickerData = await fetchExchangeTickerData('binance', pair);
+          
+          marketData.push({
+            symbol,
+            price: tickerData.price,
+            change24h: tickerData.changePercent24h || 0,
+            logoUrl: `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
+          });
+        } catch (exchangeError) {
+          console.error(`Failed to fetch data for ${symbol} from exchange API:`, exchangeError);
+        }
+      }
+      
+      // If we got at least some data, cache and return it
+      if (marketData.length > 0) {
+        apiCache.set(cacheKey, marketData);
+        return marketData;
+      }
+    } catch (fallbackError) {
+      console.error('Fallback fetch also failed:', fallbackError);
+    }
+    
     throw error;
   }
 };
@@ -522,32 +591,52 @@ export const fetchExchangeVolumeData = async (
   }
   
   try {
-    // In a real implementation, this would make API calls
-    // For now, simulate API call with some delay
-    await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 400));
+    // Use CoinGecko API to get exchange volume data
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/exchanges`,
+      { signal }
+    );
     
-    // Generate simulated volume data for each exchange
-    const volumeData: ExchangeVolumeData[] = exchanges.map(exchange => {
-      // Base volume depends on exchange "popularity"
-      let baseVolume = 0;
-      if (exchange.includes('binance')) baseVolume = 8000000000;
-      else if (exchange.includes('coinbase')) baseVolume = 4000000000;
-      else if (exchange.includes('kraken')) baseVolume = 2000000000;
-      else baseVolume = 1000000000 + Math.random() * 1500000000;
-      
-      // Add some randomness
-      const volume = baseVolume * (0.9 + Math.random() * 0.2);
-      
-      // Generate timestamp for today
-      const timestamp = new Date().toISOString();
-      
-      return {
-        exchange,
-        volume,
-        timestamp,
-        timeframe
-      };
-    });
+    if (!response.ok) {
+      throw new Error(`CoinGecko API error: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Filter for our supported exchanges and map to our format
+    const volumeData: ExchangeVolumeData[] = [];
+    
+    // Map our exchange IDs to CoinGecko IDs - this would be more complete in real code
+    const exchangeMap: Record<string, string> = {
+      'binance': 'binance',
+      'bitget': 'bitget',
+      'bybit': 'bybit_spot',
+      'kucoin': 'kucoin',
+      'gate_io': 'gate',
+      'bitfinex': 'bitfinex',
+      'gemini': 'gemini',
+      'coinbase': 'gdax',
+      'kraken': 'kraken',
+      'poloniex': 'poloniex',
+      'okx': 'okex',
+      'htx': 'huobi',
+      'mexc_global': 'mxc',
+    };
+    
+    for (const exchange of exchanges) {
+      const coinGeckoId = exchangeMap[exchange];
+      if (coinGeckoId) {
+        const exchangeInfo = data.find((e: any) => e.id === coinGeckoId);
+        if (exchangeInfo) {
+          volumeData.push({
+            exchange,
+            volume: exchangeInfo.trade_volume_24h_btc || 0,
+            timestamp: new Date().toISOString(),
+            timeframe
+          });
+        }
+      }
+    }
     
     // Sort by volume (highest first)
     volumeData.sort((a, b) => b.volume - a.volume);
@@ -586,38 +675,97 @@ export const fetchNetworkFeeData = async (
   }
   
   try {
-    // In a real implementation, this would make API calls
-    // For now, simulate API call with some delay
-    await new Promise(resolve => setTimeout(resolve, 150 + Math.random() * 300));
+    // Parallel fetch fee data for each network
+    const feeData: NetworkFeeData[] = [];
     
-    // Generate simulated fee data for each network
-    const feeData: NetworkFeeData[] = networks.map(network => {
-      // Base fee depends on network
-      let baseFee = 0;
-      if (network === 'ETH') baseFee = 2.5;
-      else if (network === 'BSC') baseFee = 0.25;
-      else if (network === 'SOL') baseFee = 0.00025;
-      else if (network === 'ARBITRUM') baseFee = 0.45;
-      else if (network === 'OPTIMISM') baseFee = 0.35;
-      else if (network === 'POLYGON') baseFee = 0.05;
-      else if (network === 'AVALANCHE') baseFee = 0.15;
-      else baseFee = 0.1;
-      
-      // Add some randomness
-      const currentFee = baseFee * (0.8 + Math.random() * 0.4);
-      
-      // Generate change percentages
-      const changePercent = (Math.random() * 20) - 10; // -10% to +10%
-      
-      return {
-        network,
-        currentFee,
-        changePercent,
-        recommendedFee: currentFee * 1.2,
-        fastFee: currentFee * 1.5,
-        timestamp: new Date().toISOString()
-      };
-    });
+    await Promise.all(networks.map(async (network) => {
+      try {
+        let networkFee;
+        
+        // Fetch real fee data based on network
+        if (network === 'ETH') {
+          // Ethereum gas prices from EtherScan API
+          const response = await fetch('https://api.etherscan.io/api?module=gastracker&action=gasoracle');
+          const data = await response.json();
+          
+          if (data.status === '1') {
+            const currentGwei = parseFloat(data.result.ProposeGasPrice);
+            const fastGwei = parseFloat(data.result.FastGasPrice);
+            
+            networkFee = {
+              network,
+              currentFee: currentGwei / 10, // Convert to meaningful USD value
+              recommendedFee: currentGwei / 10 * 1.1,
+              fastFee: fastGwei / 10,
+              changePercent: 0, // Not provided by this API
+              timestamp: new Date().toISOString()
+            };
+          }
+        }
+        else if (network === 'BSC') {
+          // BSC gas tracker
+          const response = await fetch('https://bscscan.com/api?module=gastracker&action=gasoracle');
+          const data = await response.json();
+          
+          if (data.status === '1') {
+            const currentGwei = parseFloat(data.result.ProposeGasPrice);
+            
+            networkFee = {
+              network,
+              currentFee: currentGwei / 1000, // BSC fees are much lower
+              recommendedFee: currentGwei / 1000 * 1.1,
+              fastFee: currentGwei / 1000 * 1.5,
+              changePercent: 0,
+              timestamp: new Date().toISOString()
+            };
+          }
+        }
+        else if (network === 'SOL') {
+          // Solana's cost per signature is fixed
+          networkFee = {
+            network,
+            currentFee: 0.000005,
+            recommendedFee: 0.000005,
+            fastFee: 0.000005,
+            changePercent: 0,
+            timestamp: new Date().toISOString()
+          };
+        }
+        else if (network === 'ARBITRUM' || network === 'OPTIMISM') {
+          // Use L2 fees API
+          const l2Network = network.toLowerCase();
+          const response = await fetch(`https://l2fees.info/api/v0/fees/${l2Network}`);
+          const data = await response.json();
+          
+          networkFee = {
+            network,
+            currentFee: data.standard || 0.5,
+            recommendedFee: data.standard * 1.1 || 0.55,
+            fastFee: data.instant || 0.6,
+            changePercent: 0,
+            timestamp: new Date().toISOString()
+          };
+        }
+        else {
+          // For other networks use a reasonable default based on typical values
+          // In production, each would have its own API endpoint
+          networkFee = {
+            network,
+            currentFee: 0.1,
+            recommendedFee: 0.11,
+            fastFee: 0.15,
+            changePercent: 0,
+            timestamp: new Date().toISOString()
+          };
+        }
+        
+        if (networkFee) {
+          feeData.push(networkFee);
+        }
+      } catch (networkError) {
+        console.error(`Failed to fetch fee data for ${network}:`, networkError);
+      }
+    }));
     
     // Sort by fee (highest first)
     feeData.sort((a, b) => b.currentFee - a.currentFee);

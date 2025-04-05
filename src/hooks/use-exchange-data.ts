@@ -62,14 +62,18 @@ export function useExchangeData({
       
       // Create a map of exchange -> symbol -> data
       for (const symbol of symbols) {
-        const symbolData = await fetchMultiExchangeTickerData(symbol, exchanges);
-        
-        for (const [exchange, tickerData] of Object.entries(symbolData)) {
-          if (!results[exchange]) {
-            results[exchange] = {};
-          }
+        try {
+          const symbolData = await fetchMultiExchangeTickerData(symbol, exchanges);
           
-          results[exchange][symbol] = tickerData;
+          for (const [exchange, tickerData] of Object.entries(symbolData)) {
+            if (!results[exchange]) {
+              results[exchange] = {};
+            }
+            
+            results[exchange][symbol] = tickerData;
+          }
+        } catch (error) {
+          console.error(`Error fetching data for ${symbol}:`, error);
         }
       }
       
@@ -77,7 +81,9 @@ export function useExchangeData({
     },
     enabled: fallbackToApi,
     refetchInterval: wsError ? refreshInterval : false, // Only auto-refresh API if WebSocket fails
-    staleTime: refreshInterval / 2
+    staleTime: refreshInterval / 2,
+    retry: 3,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
   // Process WebSocket errors and handle reconnections
@@ -141,7 +147,36 @@ export function useExchangeData({
   }, [wsError, isConnected, reconnectAttempts, maxReconnectAttempts, fallbackToApi, refetchApiData, reconnect]);
 
   // Determine which data source to use (WebSocket or API)
-  const exchangeData = wsData && Object.keys(wsData).length > 0 ? wsData : apiData;
+  const finalData = useMemo(() => {
+    const mergedData: Record<string, Record<string, TickerData>> = {};
+    
+    // First add all API data if available
+    if (apiData) {
+      // Process API data
+      for (const [exchange, exchangeData] of Object.entries(apiData)) {
+        mergedData[exchange] = { ...exchangeData };
+      }
+    }
+    
+    // Then overlay with WebSocket data where available
+    if (wsData) {
+      for (const [exchange, exchangeData] of Object.entries(wsData)) {
+        if (!mergedData[exchange]) {
+          mergedData[exchange] = {};
+        }
+        
+        // For each symbol in this exchange
+        for (const [symbol, tickerData] of Object.entries(exchangeData)) {
+          // Only use WebSocket data if it looks valid (has a price)
+          if (tickerData && typeof tickerData === 'object' && 'price' in tickerData) {
+            mergedData[exchange][symbol] = tickerData;
+          }
+        }
+      }
+    }
+    
+    return mergedData;
+  }, [wsData, apiData]);
   
   // Refresh function
   const refresh = useCallback(() => {
@@ -163,9 +198,9 @@ export function useExchangeData({
   }, [reconnect, refetchApiData, fallbackToApi]);
 
   return {
-    data: exchangeData || {},
-    isLoading: !exchangeData && isApiLoading,
-    isError: Boolean(wsError && (!exchangeData || Object.keys(exchangeData).length === 0)),
+    data: finalData,
+    isLoading: Object.keys(finalData).length === 0 && isApiLoading,
+    isError: Boolean(wsError && (!apiData || Object.keys(apiData).length === 0)),
     connectStatus: isConnected || {},
     refresh
   };

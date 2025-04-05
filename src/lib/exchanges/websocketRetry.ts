@@ -60,7 +60,7 @@ export class WebSocketRetryManager {
       console.warn(`WebSocket connection to ${connectionKey} failed after ${currentRetries} retries.`);
       toast({
         title: "WebSocket Connection Failed",
-        description: `Connection to ${connectionKey} failed after multiple attempts. Using fallback data.`,
+        description: `Connection failed after multiple attempts. Using API fallback data.`,
         variant: "destructive",
       });
       return false;

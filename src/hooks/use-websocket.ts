@@ -1,9 +1,10 @@
-// Since this is a read-only file, we need to create an enhanced version that can recover from WebSocket errors
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { getFallbackTickerData } from '@/lib/api/cryptoDataApi';
+import { TickerData } from '@/lib/api/cryptoDataApi';
 import { WebSocketRetryManager } from '@/lib/exchanges/websocketRetry';
 import { EXCHANGE_CONFIGS } from '@/lib/exchanges/exchangeApi';
+import { fetchExchangeTickerData } from '@/lib/api/cryptoDataApi';
+import { toast } from '@/hooks/use-toast';
 
 // Mapping of exchange IDs to their WebSocket endpoints for ticker data
 const EXCHANGE_WS_ENDPOINTS: Record<string, string> = {
@@ -44,9 +45,9 @@ export function useEnhancedWebSocket(
   // Default to BTC/USDT if no symbols provided
   const primarySymbol = symbols.length > 0 ? symbols[0] : 'BTC/USDT';
   
-  const MAX_RECONNECT_ATTEMPTS = 3;
-  const reconnectAttemptsRef = useRef<Record<string, number>>({});
-
+  // Use WebSocketRetryManager for better retry logic
+  const wsRetryManager = useRef(WebSocketRetryManager.getInstance());
+  
   // Function to get exchange-specific subscription message
   const getSubscriptionMessage = useCallback((exchange: string, symbol: string) => {
     const formattedSymbol = symbol.replace('/', '').toLowerCase(); // Format: btcusdt
@@ -122,8 +123,7 @@ export function useEnhancedWebSocket(
   // Function to parse exchange-specific ticker data
   const parseTickerData = useCallback((exchange: string, data: any, symbol: string) => {
     try {
-      // Default fallback data
-      let result = getFallbackTickerData(exchange, symbol);
+      let result: TickerData | null = null;
       const formattedSymbol = symbol.replace('/', '').toLowerCase();
       
       switch (exchange) {
@@ -136,7 +136,12 @@ export function useEnhancedWebSocket(
               bidPrice: parseFloat(tickerData.b),
               askPrice: parseFloat(tickerData.a),
               volume: parseFloat(tickerData.v),
-              timestamp: Date.now()
+              timestamp: Date.now(),
+              exchange,
+              high24h: parseFloat(tickerData.h),
+              low24h: parseFloat(tickerData.l),
+              change24h: parseFloat(tickerData.p),
+              changePercent24h: parseFloat(tickerData.P)
             };
           }
           break;
@@ -149,55 +154,46 @@ export function useEnhancedWebSocket(
               bidPrice: parseFloat(tickerData.bestBid),
               askPrice: parseFloat(tickerData.bestAsk),
               volume: parseFloat(tickerData.volume24h),
-              timestamp: Date.now()
+              timestamp: Date.now(),
+              exchange,
+              high24h: parseFloat(tickerData.high24h),
+              low24h: parseFloat(tickerData.low24h),
+              change24h: parseFloat(tickerData.priceChangeAmount),
+              changePercent24h: parseFloat(tickerData.priceChangePercent)
             };
           }
           break;
         // Add more exchange-specific parsers as needed
-        default:
-          // Use fallback data if specific parser not available
-          console.log(`No specific parser for ${exchange}, using fallback data`);
       }
       
       return result;
     } catch (error) {
       console.error(`Error parsing ${exchange} ticker data:`, error);
-      return getFallbackTickerData(exchange, symbol);
+      return null;
+    }
+  }, []);
+
+  const fetchAPITickerFallback = useCallback(async (exchange: string, symbol: string) => {
+    try {
+      return await fetchExchangeTickerData(exchange, symbol);
+    } catch (error) {
+      console.error(`API fallback failed for ${exchange} ${symbol}:`, error);
+      throw error;
     }
   }, []);
 
   const connectWebSocket = useCallback((exchange: string) => {
     if (!enabled) return;
     
-    // Don't reconnect if max attempts reached
-    if (reconnectAttemptsRef.current[exchange] >= MAX_RECONNECT_ATTEMPTS) {
-      console.log(`Max reconnect attempts reached for ${exchange}, using fallback data`);
-      
-      // Use fallback data for each symbol
-      const exchangeData: Record<string, any> = {};
-      symbols.forEach(symbol => {
-        exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
-      });
-      
-      // If we have just one symbol, keep the old format for compatibility
-      setData(prev => ({
-        ...prev,
-        [exchange]: symbols.length === 1 ? 
-          getFallbackTickerData(exchange, primarySymbol) : 
-          { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
-      }));
-      
-      setIsConnected(prev => ({
-        ...prev,
-        [exchange]: true // Mark as connected even though we're using fallback
-      }));
-      
+    // Don't reconnect if websocket already exists
+    if (wsRefs.current[exchange] && wsRefs.current[exchange]?.readyState === WebSocket.OPEN) {
       return;
     }
     
     // Close existing connection if any
     if (wsRefs.current[exchange]) {
       wsRefs.current[exchange]?.close();
+      wsRefs.current[exchange] = null;
     }
     
     try {
@@ -212,8 +208,8 @@ export function useEnhancedWebSocket(
         setIsConnected(prev => ({ ...prev, [exchange]: true }));
         setError(null);
         
-        // Reset reconnect attempts on successful connection
-        reconnectAttemptsRef.current[exchange] = 0;
+        // Reset retry logic on successful connection
+        wsRetryManager.current.resetRetryCount(`ws_${exchange}`);
         
         // Send subscription message for each symbol
         symbols.forEach(symbol => {
@@ -227,124 +223,121 @@ export function useEnhancedWebSocket(
           // Parse the message data
           const messageData = JSON.parse(event.data);
           
-          // For real implementation, parse exchange-specific data format
-          // For simulation, generate data for all symbols
           const exchangeData: Record<string, any> = {};
           
-          symbols.forEach(symbol => {
+          for (const symbol of symbols) {
             // Use exchange-specific parser if available
-            exchangeData[symbol] = parseTickerData(exchange, messageData, symbol);
-          });
+            const parsedData = parseTickerData(exchange, messageData, symbol);
+            
+            if (parsedData) {
+              exchangeData[symbol] = parsedData;
+            } else {
+              // If we can't parse the data, try to fetch it from the API
+              fetchAPITickerFallback(exchange, symbol).then(apiData => {
+                setData(prev => ({
+                  ...prev,
+                  [exchange]: {
+                    ...prev[exchange],
+                    [symbol]: apiData
+                  }
+                }));
+              }).catch(err => {
+                console.error(`Failed to get fallback data for ${exchange} ${symbol}:`, err);
+              });
+            }
+          }
           
-          // Update with the format expected by the application
-          setData(prev => ({
-            ...prev,
-            [exchange]: symbols.length === 1 ? 
-              parseTickerData(exchange, messageData, primarySymbol) : 
-              { primary: parseTickerData(exchange, messageData, primarySymbol), symbols: exchangeData }
-          }));
+          // If we parsed at least one symbol's data, update the state
+          if (Object.keys(exchangeData).length > 0) {
+            setData(prev => ({
+              ...prev,
+              [exchange]: {
+                ...prev[exchange],
+                ...exchangeData
+              }
+            }));
+          }
         } catch (error) {
           console.error(`Error processing WebSocket message for ${exchange}:`, error);
-          // Fall back to mock data on parsing error
-          const exchangeData: Record<string, any> = {};
-          symbols.forEach(symbol => {
-            exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
-          });
-          
-          setData(prev => ({
-            ...prev,
-            [exchange]: symbols.length === 1 ? 
-              getFallbackTickerData(exchange, primarySymbol) : 
-              { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
-          }));
         }
       };
       
       ws.onerror = (event) => {
         console.error(`WebSocket error for ${exchange}:`, event);
         
-        // Increment reconnect attempts
-        reconnectAttemptsRef.current[exchange] = 
-          (reconnectAttemptsRef.current[exchange] || 0) + 1;
-          
-        // Fall back to API data after error
-        const exchangeData: Record<string, any> = {};
-        symbols.forEach(symbol => {
-          exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
-        });
+        // Update connection status
+        setIsConnected(prev => ({ ...prev, [exchange]: false }));
         
-        setData(prev => ({
-          ...prev,
-          [exchange]: symbols.length === 1 ? 
-            getFallbackTickerData(exchange, primarySymbol) : 
-            { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
-        }));
+        // Try to fall back to REST API for all symbols
+        symbols.forEach(symbol => {
+          fetchAPITickerFallback(exchange, symbol).then(apiData => {
+            setData(prev => ({
+              ...prev,
+              [exchange]: {
+                ...prev[exchange],
+                [symbol]: apiData
+              }
+            }));
+          }).catch(() => {
+            // If REST API fails too, we're out of options
+            setError(`Failed to connect to ${exchange}`);
+          });
+        });
       };
       
       ws.onclose = () => {
         console.log(`WebSocket closed for ${exchange}`);
         setIsConnected(prev => ({ ...prev, [exchange]: false }));
         
-        // Try to reconnect
-        if (reconnectAttemptsRef.current[exchange] < MAX_RECONNECT_ATTEMPTS) {
-          const timeout = setTimeout(() => {
-            console.log(`Attempting to reconnect to ${exchange}...`);
-            connectWebSocket(exchange);
-          }, 2000); // 2 second delay before reconnecting
-          
-          reconnectTimersRef.current[exchange] = timeout;
-        } else {
-          // Use fallback data instead
-          const exchangeData: Record<string, any> = {};
-          symbols.forEach(symbol => {
-            exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
-          });
-          
-          setData(prev => ({
-            ...prev,
-            [exchange]: symbols.length === 1 ? 
-              getFallbackTickerData(exchange, primarySymbol) : 
-              { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
-          }));
-          
-          setIsConnected(prev => ({
-            ...prev,
-            [exchange]: true // Mark as connected even though we're using fallback
-          }));
-        }
+        // Try to reconnect using the retry manager
+        wsRetryManager.current.handleConnectionFailure(`ws_${exchange}`, () => {
+          connectWebSocket(exchange);
+        });
       };
     } catch (err) {
       console.error(`Error creating WebSocket for ${exchange}:`, err);
       setError(`Failed to connect to ${exchange}`);
       
-      // Use fallback data on connection error
-      const exchangeData: Record<string, any> = {};
+      // Try to fall back to REST API
       symbols.forEach(symbol => {
-        exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
+        fetchAPITickerFallback(exchange, symbol).then(apiData => {
+          setData(prev => ({
+            ...prev,
+            [exchange]: {
+              ...prev[exchange],
+              [symbol]: apiData
+            }
+          }));
+        }).catch(() => {});
       });
-      
-      setData(prev => ({
-        ...prev,
-        [exchange]: symbols.length === 1 ? 
-          getFallbackTickerData(exchange, primarySymbol) : 
-          { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
-      }));
     }
-  }, [enabled, symbols, primarySymbol, getSubscriptionMessage, parseTickerData]);
+  }, [enabled, symbols, getSubscriptionMessage, parseTickerData, fetchAPITickerFallback]);
   
   // Add a reconnect function to manually trigger reconnection
   const reconnect = useCallback(() => {
-    // Reset reconnect attempts
+    // Reset all connections
     exchangeIds.forEach(exchange => {
-      reconnectAttemptsRef.current[exchange] = 0;
+      wsRetryManager.current.resetRetryCount(`ws_${exchange}`);
       
       // Clear any existing reconnect timers
       if (reconnectTimersRef.current[exchange]) {
         clearTimeout(reconnectTimersRef.current[exchange]);
+        reconnectTimersRef.current[exchange] = undefined;
+      }
+      
+      // Close existing connection if any
+      if (wsRefs.current[exchange]) {
+        wsRefs.current[exchange]?.close();
+        wsRefs.current[exchange] = null;
       }
       
       // Attempt to reconnect
       connectWebSocket(exchange);
+    });
+    
+    toast({
+      title: "Reconnecting",
+      description: "Attempting to reconnect to exchange WebSockets",
     });
   }, [connectWebSocket, exchangeIds]);
   
@@ -358,34 +351,10 @@ export function useEnhancedWebSocket(
     });
     setIsConnected(initialConnected);
     
-    // Reset reconnect attempts
-    reconnectAttemptsRef.current = {};
-    
     // Connect to all exchanges
     exchangeIds.forEach(exchange => {
       connectWebSocket(exchange);
     });
-    
-    // Set up interval for refreshing data
-    const intervalId = setInterval(() => {
-      // Refresh data every 10 seconds from the fallback source
-      exchangeIds.forEach(exchange => {
-        // Only use fallback for exchanges that are not connected via WebSocket
-        if (!isConnected[exchange] || reconnectAttemptsRef.current[exchange] >= MAX_RECONNECT_ATTEMPTS) {
-          const exchangeData: Record<string, any> = {};
-          symbols.forEach(symbol => {
-            exchangeData[symbol] = getFallbackTickerData(exchange, symbol);
-          });
-          
-          setData(prev => ({
-            ...prev,
-            [exchange]: symbols.length === 1 ? 
-              getFallbackTickerData(exchange, primarySymbol) : 
-              { primary: getFallbackTickerData(exchange, primarySymbol), symbols: exchangeData }
-          }));
-        }
-      });
-    }, 10000);
     
     return () => {
       // Clean up WebSocket connections
@@ -395,13 +364,10 @@ export function useEnhancedWebSocket(
       
       // Clear reconnect timers
       Object.values(reconnectTimersRef.current).forEach(timer => {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
       });
-      
-      // Clear the refresh interval
-      clearInterval(intervalId);
     };
-  }, [connectWebSocket, enabled, exchangeIds, symbols, primarySymbol, isConnected]);
+  }, [connectWebSocket, enabled, exchangeIds]);
   
   return { data, isConnected, error, reconnect };
 }
