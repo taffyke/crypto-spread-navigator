@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
 import { 
@@ -168,8 +168,12 @@ export function useExchangeData({
         // For each symbol in this exchange
         for (const [symbol, tickerData] of Object.entries(exchangeData)) {
           // Only use WebSocket data if it looks valid (has a price)
-          if (tickerData && typeof tickerData === 'object' && 'price' in tickerData) {
-            mergedData[exchange][symbol] = tickerData;
+          if (tickerData && typeof tickerData === 'object' && 'price' in tickerData && 
+             typeof tickerData.price === 'number' && 
+             'symbol' in tickerData && 
+             'volume' in tickerData &&
+             'timestamp' in tickerData) {
+            mergedData[exchange][symbol] = tickerData as TickerData;
           }
         }
       }
