@@ -1,4 +1,3 @@
-
 import { EXCHANGE_CONFIGS } from '@/lib/exchanges/exchangeApi';
 import { apiCache } from '@/lib/exchanges/exchangeApi';
 import { notificationManager } from '@/lib/notifications/notificationSystem';
@@ -490,8 +489,8 @@ export const fetchCryptoMarketData = async (signal?: AbortSignal): Promise<Crypt
       });
     }
     
-    // Cache the result
-    apiCache.set(cacheKey, marketData, 60); // Cache for 60 seconds
+    // Cache the result for 60 seconds
+    apiCache.set(cacheKey, marketData);
     
     return marketData;
   } catch (error) {
@@ -553,8 +552,8 @@ export const fetchExchangeVolumeData = async (
     // Sort by volume (highest first)
     volumeData.sort((a, b) => b.volume - a.volume);
     
-    // Cache the result
-    apiCache.set(cacheKey, volumeData, 300); // Cache for 5 minutes
+    // Cache the result for 5 minutes
+    apiCache.set(cacheKey, volumeData);
     
     return volumeData;
   } catch (error) {
@@ -623,8 +622,8 @@ export const fetchNetworkFeeData = async (
     // Sort by fee (highest first)
     feeData.sort((a, b) => b.currentFee - a.currentFee);
     
-    // Cache the result
-    apiCache.set(cacheKey, feeData, 120); // Cache for 2 minutes
+    // Cache the result for 2 minutes
+    apiCache.set(cacheKey, feeData);
     
     return feeData;
   } catch (error) {
