@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, RefreshCw, AlertTriangle } from 'lucide-react';
@@ -128,7 +129,8 @@ const MarketOverview = () => {
       if (pairData) {
         const tickerData = pairData.data;
         const price = parseFloat(tickerData.price || tickerData.lastPrice || 0);
-        const change24h = parseFloat(tickerData.priceChangePercent || tickerData.changePercent || 0);
+        // Change this line to use priceChangePercent24h or changePercent24h instead
+        const change24h = parseFloat(tickerData.priceChangePercent || tickerData.changePercent24h || 0);
         
         if (!isNaN(price)) {
           marketData.push({
@@ -144,7 +146,7 @@ const MarketOverview = () => {
         marketData.push({
           symbol,
           price: fallbackData.price,
-          change24h: fallbackData.changePercent,
+          change24h: fallbackData.changePercent24h || 0, // Use changePercent24h instead of changePercent
           logoUrl: `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
         });
       }

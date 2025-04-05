@@ -1,4 +1,3 @@
-
 import { EXCHANGE_CONFIGS } from '@/lib/exchanges/exchangeApi';
 import { apiCache } from '@/lib/exchanges/exchangeApi';
 import { notificationManager } from '@/lib/notifications/notificationSystem';
@@ -447,4 +446,184 @@ function generateSimulatedArbitrageOpportunities(
   }
   
   return opportunities.sort((a, b) => b.spreadPercentage - a.spreadPercentage);
+}
+
+// Add missing function: fetchCryptoMarketData
+export const fetchCryptoMarketData = async (signal?: AbortSignal): Promise<CryptoMarketData[]> => {
+  const cacheKey = 'crypto_market_data';
+  
+  // Check cache first
+  const cachedData = apiCache.get(cacheKey);
+  if (cachedData) {
+    return cachedData;
+  }
+  
+  try {
+    // In a real implementation, this would make API calls
+    // For now, simulate API call with some delay
+    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
+    
+    // Define the coins we want to include
+    const coinPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'];
+    
+    // Generate simulated market data for each coin
+    const marketData: CryptoMarketData[] = [];
+    
+    for (const pair of coinPairs) {
+      const [symbol] = pair.split('/');
+      const fallbackData = getFallbackTickerData('binance', pair);
+      
+      marketData.push({
+        symbol,
+        price: fallbackData.price,
+        change24h: fallbackData.changePercent24h || 0,
+        logoUrl: `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
+      });
+    }
+    
+    // Cache the result
+    apiCache.set(cacheKey, marketData, 60); // Cache for 60 seconds
+    
+    return marketData;
+  } catch (error) {
+    console.error('Error fetching crypto market data:', error);
+    throw error;
+  }
+};
+
+// Interface for CryptoMarketData
+export interface CryptoMarketData {
+  symbol: string;
+  price: number;
+  change24h: number;
+  logoUrl?: string;
+}
+
+// Add missing function: fetchExchangeVolumeData
+export const fetchExchangeVolumeData = async (
+  exchanges: string[] = SUPPORTED_EXCHANGES,
+  timeframe: 'day' | 'week' | 'month' = 'day',
+  signal?: AbortSignal
+): Promise<ExchangeVolumeData[]> => {
+  const cacheKey = `exchange_volume_${timeframe}_${exchanges.join('-')}`;
+  
+  // Check cache first
+  const cachedData = apiCache.get(cacheKey);
+  if (cachedData) {
+    return cachedData;
+  }
+  
+  try {
+    // In a real implementation, this would make API calls
+    // For now, simulate API call with some delay
+    await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 400));
+    
+    // Generate simulated volume data for each exchange
+    const volumeData: ExchangeVolumeData[] = exchanges.map(exchange => {
+      // Base volume depends on exchange "popularity"
+      let baseVolume = 0;
+      if (exchange.includes('binance')) baseVolume = 8000000000;
+      else if (exchange.includes('coinbase')) baseVolume = 4000000000;
+      else if (exchange.includes('kraken')) baseVolume = 2000000000;
+      else baseVolume = 1000000000 + Math.random() * 1500000000;
+      
+      // Add some randomness
+      const volume = baseVolume * (0.9 + Math.random() * 0.2);
+      
+      // Generate timestamp for today
+      const timestamp = new Date().toISOString();
+      
+      return {
+        exchange,
+        volume,
+        timestamp,
+        timeframe
+      };
+    });
+    
+    // Sort by volume (highest first)
+    volumeData.sort((a, b) => b.volume - a.volume);
+    
+    // Cache the result
+    apiCache.set(cacheKey, volumeData, 300); // Cache for 5 minutes
+    
+    return volumeData;
+  } catch (error) {
+    console.error(`Error fetching exchange volume data:`, error);
+    throw error;
+  }
+};
+
+// Interface for ExchangeVolumeData
+export interface ExchangeVolumeData {
+  exchange: string;
+  volume: number;
+  timestamp: string;
+  timeframe: 'day' | 'week' | 'month';
+}
+
+// Add missing function: fetchNetworkFeeData
+export const fetchNetworkFeeData = async (
+  networks: string[] = ['ETH', 'BSC', 'SOL', 'TRX'],
+  signal?: AbortSignal
+): Promise<NetworkFeeData[]> => {
+  const cacheKey = `network_fees_${networks.join('-')}`;
+  
+  // Check cache first
+  const cachedData = apiCache.get(cacheKey);
+  if (cachedData) {
+    return cachedData;
+  }
+  
+  try {
+    // In a real implementation, this would make API calls
+    // For now, simulate API call with some delay
+    await new Promise(resolve => setTimeout(resolve, 150 + Math.random() * 300));
+    
+    // Generate simulated fee data for each network
+    const feeData: NetworkFeeData[] = networks.map(network => {
+      // Base fee depends on network
+      let baseFee = 0;
+      if (network === 'ETH') baseFee = 2.5;
+      else if (network === 'BSC') baseFee = 0.25;
+      else if (network === 'SOL') baseFee = 0.00025;
+      else baseFee = 0.1;
+      
+      // Add some randomness
+      const currentFee = baseFee * (0.8 + Math.random() * 0.4);
+      
+      // Generate change percentages
+      const changePercent = (Math.random() * 20) - 10; // -10% to +10%
+      
+      return {
+        network,
+        currentFee,
+        changePercent,
+        recommendedFee: currentFee * 1.2,
+        fastFee: currentFee * 1.5,
+        timestamp: new Date().toISOString()
+      };
+    });
+    
+    // Sort by fee (highest first)
+    feeData.sort((a, b) => b.currentFee - a.currentFee);
+    
+    // Cache the result
+    apiCache.set(cacheKey, feeData, 120); // Cache for 2 minutes
+    
+    return feeData;
+  } catch (error) {
+    console.error(`Error fetching network fee data:`, error);
+    throw error;
+  }
+};
+
+// Interface for NetworkFeeData
+export interface NetworkFeeData {
+  network: string;
+  currentFee: number;
+  changePercent: number;
+  recommendedFee: number;
+  fastFee: number;
+  timestamp: string;
 }
