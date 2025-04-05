@@ -25,7 +25,7 @@ const EXCHANGE_WS_ENDPOINTS: Record<string, string> = {
   mexc_global: 'wss://wbs.mexc.com/ws',
 };
 
-// Extended version of the WebSocket hook with better error handling and recovery
+// Enhanced version of the WebSocket hook with better error handling and recovery
 export function useEnhancedWebSocket(
   exchangeIds: string[],
   symbolsInput: string,
@@ -36,6 +36,8 @@ export function useEnhancedWebSocket(
   const [error, setError] = useState<string | null>(null);
   const wsRefs = useRef<Record<string, WebSocket | null>>({});
   const reconnectTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const pingTimestampsRef = useRef<Record<string, number>>({});
+  const pongReceivedRef = useRef<Record<string, boolean>>({});
   
   // Parse symbols input - could be a single symbol or comma-separated list
   const symbols = useMemo(() => {
@@ -120,11 +122,62 @@ export function useEnhancedWebSocket(
     }
   }, []);
   
+  // Helper function to send a heartbeat/ping to the server
+  const sendPing = useCallback((exchange: string, ws: WebSocket) => {
+    try {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      
+      const timestamp = Date.now();
+      pingTimestampsRef.current[exchange] = timestamp;
+      pongReceivedRef.current[exchange] = false;
+      
+      // Exchange-specific ping formats
+      switch (exchange) {
+        case 'binance':
+          ws.send(JSON.stringify({ method: 'ping' }));
+          break;
+        case 'bitget':
+          ws.send(JSON.stringify({ op: 'ping' }));
+          break;
+        case 'bybit':
+          ws.send(JSON.stringify({ op: 'ping' }));
+          break;
+        case 'kucoin':
+          ws.send(JSON.stringify({ id: timestamp, type: 'ping' }));
+          break;
+        case 'kraken':
+          ws.send(JSON.stringify({ name: 'ping', reqid: timestamp }));
+          break;
+        default:
+          // Generic ping for other exchanges
+          ws.send(JSON.stringify({ op: 'ping', timestamp }));
+          break;
+      }
+      
+      // Set a timeout to check if we received a pong
+      setTimeout(() => {
+        if (!pongReceivedRef.current[exchange] && 
+            wsRefs.current[exchange]?.readyState === WebSocket.OPEN) {
+          console.warn(`No pong received from ${exchange} within timeout. Reconnecting...`);
+          reconnectWebSocket(exchange);
+        }
+      }, 5000); // 5 second timeout for pong response
+    } catch (error) {
+      console.error(`Error sending ping to ${exchange}:`, error);
+    }
+  }, []);
+  
   // Function to parse exchange-specific ticker data
   const parseTickerData = useCallback((exchange: string, data: any, symbol: string) => {
     try {
       let result: TickerData | null = null;
       const formattedSymbol = symbol.replace('/', '').toLowerCase();
+      
+      // Check if this is a pong response
+      if (isExchangePongResponse(exchange, data)) {
+        pongReceivedRef.current[exchange] = true;
+        return null; // Don't process pong messages as ticker data
+      }
       
       switch (exchange) {
         case 'binance':
@@ -173,6 +226,35 @@ export function useEnhancedWebSocket(
     }
   }, []);
 
+  // Helper function to check if a response is a pong
+  const isExchangePongResponse = useCallback((exchange: string, data: any): boolean => {
+    try {
+      if (typeof data !== 'object') return false;
+      
+      // Exchange-specific pong detection
+      switch (exchange) {
+        case 'binance':
+          return data.result === 'pong' || data.id === 'pong';
+        case 'bitget':
+          return data.op === 'pong';
+        case 'bybit':
+          return data.op === 'pong' || data.ret_msg === 'pong';
+        case 'kucoin':
+          return data.type === 'pong';
+        case 'kraken':
+          return data.name === 'pong';
+        default:
+          // Generic pong detection
+          return data.pong !== undefined || 
+                 data.op === 'pong' || 
+                 data.type === 'pong' || 
+                 data.event === 'pong';
+      }
+    } catch {
+      return false;
+    }
+  }, []);
+
   const fetchAPITickerFallback = useCallback(async (exchange: string, symbol: string) => {
     try {
       return await fetchExchangeTickerData(exchange, symbol);
@@ -182,17 +264,41 @@ export function useEnhancedWebSocket(
     }
   }, []);
 
+  // Function to reconnect a specific WebSocket
+  const reconnectWebSocket = useCallback((exchange: string) => {
+    if (!enabled) return;
+    
+    // Close existing connection if it exists
+    if (wsRefs.current[exchange]) {
+      try {
+        wsRefs.current[exchange]?.close();
+      } catch (e) {
+        console.error(`Error closing WebSocket for ${exchange}:`, e);
+      }
+      wsRefs.current[exchange] = null;
+    }
+    
+    // Use the retry manager to handle the reconnection
+    wsRetryManager.current.handleConnectionFailure(`ws_${exchange}`, () => {
+      connectWebSocket(exchange);
+    });
+  }, [enabled]);
+
   const connectWebSocket = useCallback((exchange: string) => {
     if (!enabled) return;
     
-    // Don't reconnect if websocket already exists
+    // Don't reconnect if websocket already exists and is open
     if (wsRefs.current[exchange] && wsRefs.current[exchange]?.readyState === WebSocket.OPEN) {
       return;
     }
     
     // Close existing connection if any
     if (wsRefs.current[exchange]) {
-      wsRefs.current[exchange]?.close();
+      try {
+        wsRefs.current[exchange]?.close();
+      } catch (e) {
+        console.error(`Error closing existing WebSocket for ${exchange}:`, e);
+      }
       wsRefs.current[exchange] = null;
     }
     
@@ -200,28 +306,67 @@ export function useEnhancedWebSocket(
       // Get the exchange-specific WebSocket URL
       const wsUrl = EXCHANGE_WS_ENDPOINTS[exchange] || 'wss://echo.websocket.org';
       
+      console.log(`Connecting to ${exchange} WebSocket at ${wsUrl}...`);
+      
+      // Create new WebSocket with improved error handling
       const ws = new WebSocket(wsUrl);
       wsRefs.current[exchange] = ws;
       
+      // Register with the retry manager
+      wsRetryManager.current.registerConnection(`ws_${exchange}`, ws);
+      
+      // Use a timeout to detect connection failure
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.error(`Connection to ${exchange} timed out`);
+          reconnectWebSocket(exchange);
+        }
+      }, 15000); // 15 second connection timeout
+      
       ws.onopen = () => {
         console.log(`WebSocket connected for ${exchange}`);
+        clearTimeout(connectionTimeout);
+        
         setIsConnected(prev => ({ ...prev, [exchange]: true }));
         setError(null);
         
         // Reset retry logic on successful connection
         wsRetryManager.current.resetRetryCount(`ws_${exchange}`);
         
-        // Send subscription message for each symbol
-        symbols.forEach(symbol => {
-          const subscriptionMessage = getSubscriptionMessage(exchange, symbol);
-          ws.send(subscriptionMessage);
+        // Send subscription message for each symbol with a small delay to avoid overwhelming the server
+        symbols.forEach((symbol, index) => {
+          setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              const subscriptionMessage = getSubscriptionMessage(exchange, symbol);
+              ws.send(subscriptionMessage);
+              console.log(`Subscribed to ${symbol} on ${exchange}`);
+            }
+          }, index * 100); // 100ms delay between subscription messages
         });
+        
+        // Set up regular heartbeat/ping for this connection
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            sendPing(exchange, ws);
+          } else {
+            clearInterval(pingInterval);
+          }
+        }, 30000); // Send ping every 30 seconds
+        
+        // Store the interval for cleanup
+        reconnectTimersRef.current[`ping_${exchange}`] = pingInterval;
       };
       
       ws.onmessage = (event) => {
         try {
           // Parse the message data
           const messageData = JSON.parse(event.data);
+          
+          // Check if this is a pong response
+          if (isExchangePongResponse(exchange, messageData)) {
+            pongReceivedRef.current[exchange] = true;
+            return; // Don't process pong messages further
+          }
           
           const exchangeData: Record<string, any> = {};
           
@@ -232,18 +377,8 @@ export function useEnhancedWebSocket(
             if (parsedData) {
               exchangeData[symbol] = parsedData;
             } else {
-              // If we can't parse the data, try to fetch it from the API
-              fetchAPITickerFallback(exchange, symbol).then(apiData => {
-                setData(prev => ({
-                  ...prev,
-                  [exchange]: {
-                    ...prev[exchange],
-                    [symbol]: apiData
-                  }
-                }));
-              }).catch(err => {
-                console.error(`Failed to get fallback data for ${exchange} ${symbol}:`, err);
-              });
+              // If we can't parse the data, we'll try to fetch it from the API later
+              // But we don't need to do it on every message
             }
           }
           
@@ -264,6 +399,7 @@ export function useEnhancedWebSocket(
       
       ws.onerror = (event) => {
         console.error(`WebSocket error for ${exchange}:`, event);
+        clearTimeout(connectionTimeout);
         
         // Update connection status
         setIsConnected(prev => ({ ...prev, [exchange]: false }));
@@ -283,16 +419,22 @@ export function useEnhancedWebSocket(
             setError(`Failed to connect to ${exchange}`);
           });
         });
+        
+        // Use the retry manager to handle reconnection
+        reconnectWebSocket(exchange);
       };
       
-      ws.onclose = () => {
-        console.log(`WebSocket closed for ${exchange}`);
+      ws.onclose = (event) => {
+        console.log(`WebSocket closed for ${exchange} with code ${event.code} and reason: ${event.reason}`);
+        clearTimeout(connectionTimeout);
+        
+        // Update connection status
         setIsConnected(prev => ({ ...prev, [exchange]: false }));
         
-        // Try to reconnect using the retry manager
-        wsRetryManager.current.handleConnectionFailure(`ws_${exchange}`, () => {
-          connectWebSocket(exchange);
-        });
+        // Use the retry manager to handle reconnection
+        if (!event.wasClean) {
+          reconnectWebSocket(exchange);
+        }
       };
     } catch (err) {
       console.error(`Error creating WebSocket for ${exchange}:`, err);
@@ -311,7 +453,7 @@ export function useEnhancedWebSocket(
         }).catch(() => {});
       });
     }
-  }, [enabled, symbols, getSubscriptionMessage, parseTickerData, fetchAPITickerFallback]);
+  }, [enabled, symbols, getSubscriptionMessage, parseTickerData, fetchAPITickerFallback, sendPing, isExchangePongResponse, reconnectWebSocket]);
   
   // Add a reconnect function to manually trigger reconnection
   const reconnect = useCallback(() => {
@@ -320,14 +462,21 @@ export function useEnhancedWebSocket(
       wsRetryManager.current.resetRetryCount(`ws_${exchange}`);
       
       // Clear any existing reconnect timers
-      if (reconnectTimersRef.current[exchange]) {
-        clearTimeout(reconnectTimersRef.current[exchange]);
-        reconnectTimersRef.current[exchange] = undefined;
-      }
+      Object.keys(reconnectTimersRef.current).forEach(key => {
+        if (key.startsWith(`ping_${exchange}`) || key === exchange) {
+          clearTimeout(reconnectTimersRef.current[key]);
+          clearInterval(reconnectTimersRef.current[key]);
+          delete reconnectTimersRef.current[key];
+        }
+      });
       
       // Close existing connection if any
       if (wsRefs.current[exchange]) {
-        wsRefs.current[exchange]?.close();
+        try {
+          wsRefs.current[exchange]?.close();
+        } catch (e) {
+          console.error(`Error closing connection for ${exchange}:`, e);
+        }
         wsRefs.current[exchange] = null;
       }
       
@@ -351,21 +500,33 @@ export function useEnhancedWebSocket(
     });
     setIsConnected(initialConnected);
     
-    // Connect to all exchanges
-    exchangeIds.forEach(exchange => {
-      connectWebSocket(exchange);
+    // Connect to all exchanges with a small delay between each
+    exchangeIds.forEach((exchange, index) => {
+      setTimeout(() => {
+        connectWebSocket(exchange);
+      }, index * 300); // 300ms delay between connection attempts to avoid overwhelming the network
     });
     
     return () => {
       // Clean up WebSocket connections
-      Object.entries(wsRefs.current).forEach(([_, ws]) => {
-        if (ws) ws.close();
+      Object.entries(wsRefs.current).forEach(([exchange, ws]) => {
+        if (ws) {
+          try {
+            ws.close();
+          } catch (e) {
+            console.error(`Error closing connection for ${exchange}:`, e);
+          }
+        }
       });
       
-      // Clear reconnect timers
+      // Clear all timers and intervals
       Object.values(reconnectTimersRef.current).forEach(timer => {
-        if (timer) clearTimeout(timer);
+        clearTimeout(timer);
+        clearInterval(timer);
       });
+      
+      // Clean up all connections in the retry manager
+      wsRetryManager.current.cleanup();
     };
   }, [connectWebSocket, enabled, exchangeIds]);
   

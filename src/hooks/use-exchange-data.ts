@@ -37,6 +37,8 @@ export function useExchangeData({
 }: UseExchangeDataOptions): ExchangeTickerResponse {
   const [reconnectAttempts, setReconnectAttempts] = useState<Record<string, number>>({});
   const maxReconnectAttempts = 5;
+  const [lastReconnectTime, setLastReconnectTime] = useState<number>(0);
+  const reconnectCooldown = 10000; // 10 seconds between manual reconnect attempts
 
   // Use WebSocket for real-time data
   const {
@@ -86,6 +88,24 @@ export function useExchangeData({
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
+  // Safe reconnect function with cooldown protection
+  const safeReconnect = useCallback(() => {
+    const now = Date.now();
+    if (now - lastReconnectTime > reconnectCooldown) {
+      setLastReconnectTime(now);
+      reconnect();
+      console.log("Manually reconnecting to WebSockets");
+      
+      // Show a toast to indicate reconnection attempt
+      toast({
+        title: "Reconnecting WebSockets",
+        description: "Attempting to establish stable connections to exchanges..."
+      });
+    } else {
+      console.log("Reconnect attempt throttled (cooldown period)");
+    }
+  }, [reconnect, lastReconnectTime, reconnectCooldown]);
+  
   // Process WebSocket errors and handle reconnections
   useEffect(() => {
     if (wsError) {
@@ -105,7 +125,7 @@ export function useExchangeData({
                 [exchange]: (prev[exchange] || 0) + 1
               }));
               
-              reconnect();
+              safeReconnect();
             }, 2000 + (currentAttempts * 1000)); // Increasing backoff
             
             return () => clearTimeout(timer);
@@ -144,7 +164,7 @@ export function useExchangeData({
         }));
       }
     }
-  }, [wsError, isConnected, reconnectAttempts, maxReconnectAttempts, fallbackToApi, refetchApiData, reconnect]);
+  }, [wsError, isConnected, reconnectAttempts, maxReconnectAttempts, fallbackToApi, refetchApiData, safeReconnect]);
 
   // Determine which data source to use (WebSocket or API)
   const finalData = useMemo(() => {
@@ -182,13 +202,30 @@ export function useExchangeData({
     return mergedData;
   }, [wsData, apiData]);
   
+  // Setup periodic connection check
+  useEffect(() => {
+    // Check connection status every minute
+    const connectionCheckInterval = setInterval(() => {
+      // Check if we have any connected exchanges
+      const hasConnectedExchanges = isConnected && 
+        Object.values(isConnected).some(connected => connected);
+      
+      if (!hasConnectedExchanges && fallbackToApi) {
+        console.log("No connected exchanges detected, attempting to reconnect...");
+        safeReconnect();
+      }
+    }, 60000); // Check every minute
+    
+    return () => clearInterval(connectionCheckInterval);
+  }, [isConnected, fallbackToApi, safeReconnect]);
+  
   // Refresh function
   const refresh = useCallback(() => {
     // Reset reconnect attempts
     setReconnectAttempts({});
     
     // Try to reconnect WebSocket
-    reconnect();
+    safeReconnect();
     
     // Also refresh API data as backup
     if (fallbackToApi) {
@@ -199,7 +236,7 @@ export function useExchangeData({
       title: "Refreshing Exchange Data",
       description: "Fetching latest market information."
     });
-  }, [reconnect, refetchApiData, fallbackToApi]);
+  }, [safeReconnect, refetchApiData, fallbackToApi]);
 
   return {
     data: finalData,
