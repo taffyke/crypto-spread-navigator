@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
@@ -54,9 +53,6 @@ export function useExchangeData({
     exchanges,
     symbols.join(',')
   );
-
-  // The third argument 'true' was causing the error, the function expects only 1-2 arguments
-  // Fixed by removing the third argument since true is the default value
 
   // Use API Query for fallback data
   const {
