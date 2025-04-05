@@ -77,11 +77,7 @@ export class WebSocketRetryManager {
       const interval = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           try {
-            if (ws.ping) {
-              ws.ping();
-            } else {
-              ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
-            }
+            ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
           } catch (error) {
             console.error(`Error sending ping to ${connectionKey}:`, error);
             this.clearPingInterval(connectionKey);
