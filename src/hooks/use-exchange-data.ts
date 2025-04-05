@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
@@ -43,7 +44,7 @@ export function useExchangeData({
   const [connectionHealthy, setConnectionHealthy] = useState<boolean>(true);
   const [dataFreshness, setDataFreshness] = useState<Record<string, number>>({});
 
-  // Use WebSocket for real-time data
+  // Use WebSocket for real-time data - fixed by removing the third argument
   const {
     data: wsData,
     isConnected,

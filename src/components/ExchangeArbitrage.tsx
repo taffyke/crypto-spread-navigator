@@ -17,9 +17,11 @@ export function ExchangeArbitrage({
   minSpreadPercent = 0.1
 }: ExchangeArbitrageProps) {
   // Use all supported exchanges for maximum arbitrage opportunities
-  const { data, isLoading, refresh } = useExchangeData({
+  const { data, isLoading, refresh, connectStatus } = useExchangeData({
     symbols,
-    exchanges: SUPPORTED_EXCHANGES
+    exchanges: SUPPORTED_EXCHANGES,
+    refreshInterval: 15000,  // Refresh more frequently (every 15 seconds)
+    retryWebSocketInterval: 20000  // Retry connections every 20 seconds
   });
   
   // Find arbitrage opportunities
