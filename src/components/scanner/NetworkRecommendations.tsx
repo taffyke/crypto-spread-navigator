@@ -1,135 +1,153 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ExternalLink, RefreshCw } from 'lucide-react';
-import { fetchNetworkFeeData } from '@/lib/api/cryptoDataApi';
-import { toast } from '@/hooks/use-toast';
+import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { fetchNetworkFeeData, NetworkFeeData } from '@/lib/api/cryptoDataApi';
+import { Button } from "@/components/ui/button";
 import { useQuery } from '@tanstack/react-query';
-import { cn } from '@/lib/utils';
 
-// Define the NetworkFeeData type
-interface NetworkFeeData {
-  token: string;
-  network: string;
-  fee: number;
-  congestion: 'low' | 'medium' | 'high';
-}
+const networks = ['ETH', 'BSC', 'SOL', 'TRX', 'ARBITRUM', 'OPTIMISM', 'POLYGON', 'AVALANCHE'];
 
-const NetworkRecommendations = () => {
-  // Use React Query for efficient data fetching with caching and automatic refetching
-  const { 
-    data: feeData = [], 
-    isLoading,
-    refetch, 
-    isFetching 
-  } = useQuery({
-    queryKey: ['networkFeeData'],
-    queryFn: async ({ signal }) => {
-      return await fetchNetworkFeeData(signal);
-    },
-    refetchInterval: 60000, // Refresh every 1 minute
-    staleTime: 30000, // Consider data stale after 30 seconds
-    retry: 3,
-    refetchOnWindowFocus: true,
-  });
+export function NetworkRecommendations() {
+  const [expandedNetwork, setExpandedNetwork] = useState<string | null>(null);
   
-  const handleRefresh = () => {
-    refetch();
-    toast({
-      title: "Refreshing Fee Data",
-      description: "Fetching latest network fee information."
-    });
+  const toggleNetwork = (network: string) => {
+    if (expandedNetwork === network) {
+      setExpandedNetwork(null);
+    } else {
+      setExpandedNetwork(network);
+    }
   };
-  
-  // Sort networks by fee (lowest first) to recommend the cheapest
-  const sortedFeeData = [...feeData].sort((a, b) => a.fee - b.fee);
-  
+
+  // Fetch network fee data
+  const { 
+    data: networkFeeData = [], 
+    isLoading,
+    error 
+  } = useQuery({
+    queryKey: ['networkFees'],
+    queryFn: async () => {
+      return await fetchNetworkFeeData(networks);
+    },
+    staleTime: 60000, // 1 minute
+    refetchInterval: 2 * 60 * 1000, // Refresh every 2 minutes
+    retry: 2
+  });
+
+  // Helper function to render the color based on fee comparison
+  const getFeeColor = (a: number, b: number) => {
+    const ratio = a / b;
+    if (ratio < 0.8) return 'text-green-500';
+    if (ratio > 1.2) return 'text-red-500';
+    return 'text-yellow-400';
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="bg-slate-800 border-slate-700 text-white">
+        <CardHeader>
+          <CardTitle className="text-sm md:text-base">Network Recommendations</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-12 bg-slate-700/50 rounded"></div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error || networkFeeData.length === 0) {
+    return (
+      <Card className="bg-slate-800 border-slate-700 text-white">
+        <CardHeader>
+          <CardTitle className="text-sm md:text-base">Network Recommendations</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-4 text-slate-400">
+            <AlertCircle className="mr-2 h-4 w-4" />
+            <span>Unable to load network data</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Sort networks by fee (lowest first)
+  const sortedNetworks = [...networkFeeData].sort((a, b) => a.currentFee - b.currentFee);
+
   return (
     <Card className="bg-slate-800 border-slate-700 text-white">
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-sm md:text-base">Network Recommendations</CardTitle>
-          <button 
-            onClick={handleRefresh}
-            disabled={isFetching}
-            className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+      <CardHeader>
+        <CardTitle className="text-sm md:text-base">Network Recommendations</CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs md:text-sm">
-            <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left font-medium text-slate-400 py-2 px-3 md:px-4">Asset</th>
-                <th className="text-left font-medium text-slate-400 py-2 px-3 md:px-4">Network</th>
-                <th className="text-right font-medium text-slate-400 py-2 px-3 md:px-4">Fee</th>
-                <th className="text-right font-medium text-slate-400 py-2 px-3 md:px-4">Congestion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                Array(6).fill(0).map((_, index) => (
-                  <tr key={index} className="border-b border-slate-700/70">
-                    <td colSpan={4} className="py-3">
-                      <div className="flex items-center justify-center">
-                        <div className="h-2 w-full mx-4 bg-slate-700/70 animate-pulse rounded"></div>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : sortedFeeData.length > 0 ? (
-                sortedFeeData.map((item, index) => (
-                  <tr 
-                    key={`${item.token}-${item.network}-${index}`} 
-                    className={cn(
-                      "border-b border-slate-700/70 hover:bg-slate-700/30 transition-colors",
-                      index < 3 ? "bg-slate-700/20" : "" // Highlight the three cheapest networks
-                    )}
-                  >
-                    <td className="py-2 px-3 md:px-4">
-                      <div className="font-medium text-white">{item.token}</div>
-                    </td>
-                    <td className="py-2 px-3 md:px-4 text-slate-300">
-                      {item.network}
-                      {index < 3 && (
-                        <span className="ml-1 text-green-400 text-[10px]">
-                          {index === 0 ? "Best" : index === 1 ? "Good" : "Recommended"}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 md:px-4 text-right text-slate-300">
-                      ${item.fee.toFixed(2)}
-                    </td>
-                    <td className="py-2 px-3 md:px-4 text-right">
-                      <Badge 
-                        className={cn(
-                          "hover:bg-opacity-90 text-white text-[10px] md:text-xs",
-                          item.congestion === 'low' ? "bg-green-600" : 
-                          item.congestion === 'medium' ? "bg-amber-600" : "bg-red-600"
-                        )}
-                      >
-                        {item.congestion.charAt(0).toUpperCase() + item.congestion.slice(1)}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="py-4 text-center text-slate-400">
-                    No network data available
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <CardContent className="space-y-2">
+        {sortedNetworks.map((networkData) => (
+          <div key={networkData.network} className="border border-slate-700 rounded-lg overflow-hidden">
+            <div 
+              className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-700/50"
+              onClick={() => toggleNetwork(networkData.network)}
+            >
+              <div className="flex items-center">
+                <img 
+                  src={`/network-logos/${networkData.network.toLowerCase()}.svg`} 
+                  alt={networkData.network}
+                  className="w-5 h-5 mr-2"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    target.src = '/network-logos/generic.svg';
+                  }}
+                />
+                <span>{networkData.network}</span>
+              </div>
+              <div className="flex items-center">
+                <span className={`mr-3 ${networkData.changePercent > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  {networkData.changePercent > 0 ? '+' : ''}{networkData.changePercent.toFixed(1)}%
+                </span>
+                <span className="mr-3 font-medium">${networkData.currentFee.toFixed(2)}</span>
+                {expandedNetwork === networkData.network ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </div>
+            </div>
+            {expandedNetwork === networkData.network && (
+              <div className="p-3 bg-slate-700/30 border-t border-slate-700">
+                <div className="flex justify-between mb-2">
+                  <span className="text-slate-400">Standard Fee:</span>
+                  <span>${networkData.currentFee.toFixed(4)}</span>
+                </div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-slate-400">Recommended Fee:</span>
+                  <span className={getFeeColor(networkData.recommendedFee, networkData.currentFee)}>
+                    ${networkData.recommendedFee.toFixed(4)}
+                  </span>
+                </div>
+                <div className="flex justify-between mb-3">
+                  <span className="text-slate-400">Fast Fee:</span>
+                  <span className={getFeeColor(networkData.fastFee, networkData.currentFee)}>
+                    ${networkData.fastFee.toFixed(4)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant="outline" className="border-slate-600 text-slate-200">
+                    View Details
+                  </Button>
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                    Use Network
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
-};
+}
 
 export default NetworkRecommendations;

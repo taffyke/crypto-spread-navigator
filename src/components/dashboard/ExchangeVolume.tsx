@@ -3,7 +3,7 @@ import React, { useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { RefreshCw } from 'lucide-react';
-import { fetchExchangeVolumeData } from '@/lib/api/cryptoDataApi';
+import { fetchExchangeVolumeData, ExchangeVolumeData as ApiVolumeData } from '@/lib/api/cryptoDataApi';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
@@ -21,22 +21,36 @@ interface CustomLegendPayload {
   logo?: string;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ef4444'];
+const COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#eab308', '#8b5cf6', '#06b6d4', '#d946ef'];
 const EXCHANGE_LOGOS: Record<string, string> = {
   binance: '/exchange-logos/binance.svg',
   coinbase: '/exchange-logos/coinbase.svg',
   kucoin: '/exchange-logos/kucoin.svg',
   kraken: '/exchange-logos/kraken.svg',
   gate_io: '/exchange-logos/gate.svg',
+  bitget: '/exchange-logos/bitget.svg',
+  bybit: '/exchange-logos/bybit.svg',
+  bitfinex: '/exchange-logos/bitfinex.svg',
+  gemini: '/exchange-logos/gemini.svg',
+  poloniex: '/exchange-logos/poloniex.svg',
+  okx: '/exchange-logos/okx.svg',
+  ascendex: '/exchange-logos/ascendex.svg',
+  bitrue: '/exchange-logos/bitrue.svg',
+  htx: '/exchange-logos/htx.svg',
+  mexc_global: '/exchange-logos/mexc.svg',
 };
 
 const ExchangeVolume = () => {
   // Define exchange IDs for both API and WebSocket
-  const exchangeIds = ['binance', 'coinbase', 'kucoin', 'kraken', 'gate_io'];
+  const exchangeIds = [
+    'binance', 'coinbase', 'kucoin', 'kraken', 'gate_io',
+    'bitget', 'bybit', 'bitfinex', 'gemini', 'poloniex',
+    'okx', 'ascendex', 'bitrue', 'htx', 'mexc_global'
+  ];
   
   // Handle refresh function to be passed to useQuery
   const handleRefetch = useCallback(async ({ signal }: { signal?: AbortSignal } = {}) => {
-    return await fetchExchangeVolumeData(signal);
+    return await fetchExchangeVolumeData(exchangeIds, 'day', signal);
   }, []);
   
   // Use React Query for fallback data fetching with caching and automatic refetching
@@ -91,14 +105,17 @@ const ExchangeVolume = () => {
   }, [wsData]);
   
   // Determine which data source to use: WebSocket or API
-  const volumeData = useMemo(() => {
+  const volumeData: ExchangeVolumeData[] = useMemo(() => {
     if (wsVolumeData && wsVolumeData.length > 1) {
       console.log('Using real-time WebSocket volume data');
-      return wsVolumeData;
+      return wsVolumeData as ExchangeVolumeData[];
     }
     
     console.log('Using API volume data');
-    return apiVolumeData || [];
+    return apiVolumeData.map(item => ({
+      exchange: item.exchange,
+      volume24h: item.volume
+    })) as ExchangeVolumeData[];
   }, [wsVolumeData, apiVolumeData]);
   
   // Calculate loading state based on data availability and connection status

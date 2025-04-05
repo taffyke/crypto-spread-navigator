@@ -1,3 +1,4 @@
+
 import { EXCHANGE_CONFIGS } from '@/lib/exchanges/exchangeApi';
 import { apiCache } from '@/lib/exchanges/exchangeApi';
 import { notificationManager } from '@/lib/notifications/notificationSystem';
@@ -448,7 +449,15 @@ function generateSimulatedArbitrageOpportunities(
   return opportunities.sort((a, b) => b.spreadPercentage - a.spreadPercentage);
 }
 
-// Add missing function: fetchCryptoMarketData
+// Interface for CryptoMarketData
+export interface CryptoMarketData {
+  symbol: string;
+  price: number;
+  change24h: number;
+  logoUrl?: string;
+}
+
+// Fetch crypto market data
 export const fetchCryptoMarketData = async (signal?: AbortSignal): Promise<CryptoMarketData[]> => {
   const cacheKey = 'crypto_market_data';
   
@@ -491,15 +500,15 @@ export const fetchCryptoMarketData = async (signal?: AbortSignal): Promise<Crypt
   }
 };
 
-// Interface for CryptoMarketData
-export interface CryptoMarketData {
-  symbol: string;
-  price: number;
-  change24h: number;
-  logoUrl?: string;
+// Interface for ExchangeVolumeData
+export interface ExchangeVolumeData {
+  exchange: string;
+  volume: number;
+  timestamp: string;
+  timeframe: 'day' | 'week' | 'month';
 }
 
-// Add missing function: fetchExchangeVolumeData
+// Fetch exchange volume data
 export const fetchExchangeVolumeData = async (
   exchanges: string[] = SUPPORTED_EXCHANGES,
   timeframe: 'day' | 'week' | 'month' = 'day',
@@ -554,17 +563,19 @@ export const fetchExchangeVolumeData = async (
   }
 };
 
-// Interface for ExchangeVolumeData
-export interface ExchangeVolumeData {
-  exchange: string;
-  volume: number;
+// Interface for NetworkFeeData
+export interface NetworkFeeData {
+  network: string;
+  currentFee: number;
+  changePercent: number;
+  recommendedFee: number;
+  fastFee: number;
   timestamp: string;
-  timeframe: 'day' | 'week' | 'month';
 }
 
-// Add missing function: fetchNetworkFeeData
+// Fetch network fee data
 export const fetchNetworkFeeData = async (
-  networks: string[] = ['ETH', 'BSC', 'SOL', 'TRX'],
+  networks: string[] = ['ETH', 'BSC', 'SOL', 'TRX', 'ARBITRUM', 'OPTIMISM'],
   signal?: AbortSignal
 ): Promise<NetworkFeeData[]> => {
   const cacheKey = `network_fees_${networks.join('-')}`;
@@ -587,6 +598,10 @@ export const fetchNetworkFeeData = async (
       if (network === 'ETH') baseFee = 2.5;
       else if (network === 'BSC') baseFee = 0.25;
       else if (network === 'SOL') baseFee = 0.00025;
+      else if (network === 'ARBITRUM') baseFee = 0.45;
+      else if (network === 'OPTIMISM') baseFee = 0.35;
+      else if (network === 'POLYGON') baseFee = 0.05;
+      else if (network === 'AVALANCHE') baseFee = 0.15;
       else baseFee = 0.1;
       
       // Add some randomness
@@ -617,13 +632,3 @@ export const fetchNetworkFeeData = async (
     throw error;
   }
 };
-
-// Interface for NetworkFeeData
-export interface NetworkFeeData {
-  network: string;
-  currentFee: number;
-  changePercent: number;
-  recommendedFee: number;
-  fastFee: number;
-  timestamp: string;
-}

@@ -6,6 +6,7 @@ import { fetchCryptoMarketData, getFallbackTickerData } from '@/lib/api/cryptoDa
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
+import { SUPPORTED_EXCHANGES } from '@/lib/api/cryptoDataApi';
 
 // Define the CryptoMarketData type
 interface CryptoMarketData {
@@ -18,7 +19,8 @@ interface CryptoMarketData {
 const MarketOverview = () => {
   // Define constants outside of any hooks
   const coinPairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'];
-  const exchanges = ['binance', 'coinbase', 'kraken', 'kucoin']; // Use multiple exchanges for reliability
+  // Use all supported exchanges for better reliability
+  const exchanges = [...SUPPORTED_EXCHANGES];
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
@@ -129,8 +131,8 @@ const MarketOverview = () => {
       if (pairData) {
         const tickerData = pairData.data;
         const price = parseFloat(tickerData.price || tickerData.lastPrice || 0);
-        // Change this line to use priceChangePercent24h or changePercent24h instead
-        const change24h = parseFloat(tickerData.priceChangePercent || tickerData.changePercent24h || 0);
+        // Use changePercent24h as the standard property name
+        const change24h = parseFloat(tickerData.changePercent24h || tickerData.priceChangePercent || 0);
         
         if (!isNaN(price)) {
           marketData.push({
@@ -146,7 +148,7 @@ const MarketOverview = () => {
         marketData.push({
           symbol,
           price: fallbackData.price,
-          change24h: fallbackData.changePercent24h || 0, // Use changePercent24h instead of changePercent
+          change24h: fallbackData.changePercent24h || 0, // Use changePercent24h as standard
           logoUrl: `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
         });
       }
