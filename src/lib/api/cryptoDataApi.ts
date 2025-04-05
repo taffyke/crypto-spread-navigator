@@ -1,6 +1,9 @@
+
 import { EXCHANGE_CONFIGS } from '@/lib/exchanges/exchangeApi';
 import { apiCache } from '@/lib/exchanges/exchangeApi';
 import { notificationManager } from '@/lib/notifications/notificationSystem';
+import type { Ticker } from '@/lib/exchanges/exchangeApi';
+import type { ProfitDataPoint } from '@/components/dashboard/ProfitChart';
 
 // List of all supported exchanges
 export const SUPPORTED_EXCHANGES = Object.keys(EXCHANGE_CONFIGS);
@@ -19,6 +22,57 @@ export interface TickerData {
   change24h?: number;
   changePercent24h?: number;
 }
+
+// Function to calculate profit data for the chart based on ticker information
+export const calculateProfitData = (ticker: Ticker | null, days: number = 30): ProfitDataPoint[] => {
+  const profitData: ProfitDataPoint[] = [];
+  const today = new Date();
+  let cumulativeProfit = 0;
+  
+  // Generate historical data going back 'days' number of days
+  for (let i = days - 1; i >= 0; i--) {
+    const currentDate = new Date();
+    currentDate.setDate(today.getDate() - i);
+    
+    // Format date as "MMM D" (e.g., "Jan 15")
+    const formattedDate = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    
+    // Calculate a somewhat realistic profit based on the day and ticker data if available
+    // Use changePercent from ticker if available, otherwise generate synthetic data
+    let dailyProfit;
+    
+    if (ticker && i === 0 && typeof ticker.changePercent === 'number') {
+      // For today, use actual changePercent from ticker
+      dailyProfit = ticker.changePercent * 10;
+    } else {
+      // Generate synthetic profit based on position in the month and some randomness
+      const baseValue = Math.sin((i / days) * Math.PI) * 100; // Sinusoidal pattern for realism
+      const randomFactor = 0.7 + Math.random() * 0.6; // 0.7-1.3 random factor
+      
+      dailyProfit = baseValue * randomFactor;
+      
+      // Add some trend based on actual ticker data if available
+      if (ticker && typeof ticker.changePercent === 'number') {
+        const trendInfluence = ticker.changePercent > 0 ? 1.2 : 0.8;
+        dailyProfit *= trendInfluence;
+      }
+      
+      // Round to reasonable values
+      dailyProfit = Math.round(dailyProfit * 100) / 100;
+    }
+    
+    // Add to cumulative profit
+    cumulativeProfit += dailyProfit;
+    
+    profitData.push({
+      date: formattedDate,
+      profit: dailyProfit,
+      cumulativeProfit: cumulativeProfit
+    });
+  }
+  
+  return profitData;
+};
 
 // Generate fallback ticker data for simulation or when API fails
 export const getFallbackTickerData = (
