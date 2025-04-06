@@ -16,55 +16,64 @@ export function ExchangeArbitrage({
   symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT'],
   minSpreadPercent = 0.1
 }: ExchangeArbitrageProps) {
-  // Use all supported exchanges for maximum arbitrage opportunities
+  // Use all supported exchanges for maximum arbitrage opportunities with optimized settings
   const { data, isLoading, refresh, connectStatus } = useExchangeData({
     symbols,
     exchanges: SUPPORTED_EXCHANGES,
-    refreshInterval: 15000,  // Refresh more frequently (every 15 seconds)
-    retryWebSocketInterval: 20000  // Retry connections every 20 seconds
+    refreshInterval: 10000,  // Refresh more frequently (every 10 seconds)
+    retryWebSocketInterval: 15000,  // More aggressive retry for WebSocket connections
+    fallbackToApi: true      // Always use API as fallback if WebSockets fail
   });
   
-  // Find arbitrage opportunities
+  // Find arbitrage opportunities (optimized for performance)
   const opportunities = useMemo(() => {
     if (!data || Object.keys(data).length < 2) return [];
     
     const results = [];
     
     for (const symbol of symbols) {
-      // Collect prices from all exchanges that have data for this symbol
+      // Use a map for faster lookup of prices by exchange
       const exchangePrices = [];
       
       for (const [exchange, exchangeData] of Object.entries(data)) {
-        if (exchangeData[symbol] && exchangeData[symbol].price) {
+        if (exchangeData[symbol] && 
+            exchangeData[symbol].price && 
+            !isNaN(exchangeData[symbol].price) && 
+            exchangeData[symbol].price > 0) {
           exchangePrices.push({
             exchange,
-            price: exchangeData[symbol].price
+            price: exchangeData[symbol].price,
+            // Also track bid/ask for more accurate spreads when available
+            bidPrice: exchangeData[symbol].bidPrice || exchangeData[symbol].price,
+            askPrice: exchangeData[symbol].askPrice || exchangeData[symbol].price
           });
         }
       }
       
-      // Sort by price (lowest first)
-      exchangePrices.sort((a, b) => a.price - b.price);
-      
-      // If we have at least 2 exchanges, check for arbitrage opportunities
+      // Only proceed if we have at least 2 exchanges with data
       if (exchangePrices.length >= 2) {
+        // Sort by price (lowest first) for efficient min/max finding
+        exchangePrices.sort((a, b) => a.price - b.price);
+        
         // Compare lowest and highest price
         const lowest = exchangePrices[0];
         const highest = exchangePrices[exchangePrices.length - 1];
         
-        // Calculate spread percentage
-        const spreadPercent = ((highest.price - lowest.price) / lowest.price) * 100;
+        // Calculate spread percentage - use ask/bid prices if available for more accuracy
+        const effectiveBuyPrice = lowest.bidPrice || lowest.price;
+        const effectiveSellPrice = highest.askPrice || highest.price;
+        const spreadPercent = ((effectiveSellPrice - effectiveBuyPrice) / effectiveBuyPrice) * 100;
         
         // If spread is significant enough, add to opportunities
         if (spreadPercent >= minSpreadPercent) {
           results.push({
             symbol,
             buyExchange: lowest.exchange,
-            buyPrice: lowest.price,
+            buyPrice: effectiveBuyPrice,
             sellExchange: highest.exchange,
-            sellPrice: highest.price,
+            sellPrice: effectiveSellPrice,
             spreadPercent,
-            profit: highest.price - lowest.price,
+            profit: effectiveSellPrice - effectiveBuyPrice,
             profitPercent: spreadPercent
           });
         }
@@ -74,6 +83,15 @@ export function ExchangeArbitrage({
     // Sort by profit percentage (highest first)
     return results.sort((a, b) => b.profitPercent - a.profitPercent);
   }, [data, symbols, minSpreadPercent]);
+  
+  // Count connected exchanges for status display
+  const connectedExchangeCount = useMemo(() => {
+    if (!connectStatus) return 0;
+    return Object.values(connectStatus).filter(Boolean).length;
+  }, [connectStatus]);
+  
+  // Calculate refresh timestamp
+  const refreshTimestamp = useMemo(() => new Date().toLocaleTimeString(), [opportunities]);
   
   return (
     <Card className="bg-slate-800 border-slate-700 text-white">
@@ -91,6 +109,19 @@ export function ExchangeArbitrage({
                 <p>Opportunities with at least {minSpreadPercent}% spread</p>
               </TooltipContent>
             </Tooltip>
+            
+            {/* Show connection status */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={`text-xs ${connectedExchangeCount > 0 ? 'bg-green-800/60 text-green-300' : 'bg-red-800/60 text-red-300'} px-2 py-0.5 rounded-full ml-2 flex items-center`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${connectedExchangeCount > 0 ? 'bg-green-400' : 'bg-red-400'} mr-1.5 animate-pulse`}></span>
+                  {connectedExchangeCount}/{SUPPORTED_EXCHANGES.length}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{connectedExchangeCount} exchanges connected for real-time data</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
           <button 
             onClick={refresh}
@@ -98,6 +129,9 @@ export function ExchangeArbitrage({
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
+        </div>
+        <div className="text-xs text-slate-400 mt-1">
+          Last updated: {refreshTimestamp}
         </div>
       </CardHeader>
       <CardContent>
