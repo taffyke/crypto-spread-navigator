@@ -11,6 +11,7 @@ import { useLocation, Navigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from '@/hooks/use-toast';
 import { notificationManager } from '@/lib/notifications/notificationSystem';
+import BeginnerEducationalCarousel from '@/components/education/EducationalCarousel';
 
 // Component for "Coming Soon" pages
 const ComingSoonPage = ({ pageName }: { pageName: string }) => {
@@ -92,6 +93,18 @@ const Index = () => {
       return () => clearTimeout(timer);
     }
   }, [location.pathname]);
+
+  // Educational component - shown only on homepage initially
+  const showEducationalPrompt = () => {
+    if (location.pathname === '/' || location.pathname === '/index') {
+      return (
+        <div className="fixed bottom-6 right-6 z-40">
+          <BeginnerEducationalCarousel />
+        </div>
+      );
+    }
+    return null;
+  };
   
   // Determine which page to show based on the current path
   const renderContent = () => {
@@ -123,7 +136,12 @@ const Index = () => {
     return <Dashboard />;
   };
   
-  return <AppLayout>{renderContent()}</AppLayout>;
+  return (
+    <AppLayout>
+      {renderContent()}
+      {showEducationalPrompt()}
+    </AppLayout>
+  );
 };
 
 export default Index;
