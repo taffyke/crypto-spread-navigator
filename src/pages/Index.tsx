@@ -7,6 +7,7 @@ import Scanner from '@/pages/Scanner';
 import Bots from '@/pages/Bots';
 import MarketAnalysis from '@/pages/MarketAnalysis';
 import Performance from '@/pages/Performance';
+import Education from '@/pages/Education';
 import { useLocation, Navigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from '@/hooks/use-toast';
@@ -118,6 +119,8 @@ const Index = () => {
       return <MarketAnalysis />;
     } else if (path === '/performance') {
       return <Performance />;
+    } else if (path === '/education') {
+      return <Education />;
     } else if (path === '/alerts') {
       return <ComingSoonPage pageName="Alerts Configuration" />;
     } else if (path === '/risk') {
