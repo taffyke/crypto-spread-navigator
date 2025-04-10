@@ -43,6 +43,7 @@ import Alerts from '@/pages/Alerts';
 import MarketAnalysis from '@/pages/MarketAnalysis';
 import Sidebar from '@/components/layout/Sidebar';
 import Charts from '@/pages/Charts';
+import Education from '@/pages/Education';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -302,6 +303,7 @@ function App() {
               <Route path="/performance" element={<Performance />} />
               <Route path="/bots" element={<Bots />} />
               <Route path="/market-analysis" element={<MarketAnalysis />} />
+              <Route path="/education" element={<Education />} />
               
               {/* Redirect standalone Portfolio and Alerts to profile tabs */}
               <Route path="/portfolio" element={<Profile initialTab="portfolio" />} />

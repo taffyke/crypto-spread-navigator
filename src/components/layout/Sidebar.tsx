@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -13,7 +14,8 @@ import {
   History, 
   User, 
   Settings,
-  Key
+  Key,
+  Book
 } from 'lucide-react';
 
 interface NavItem {
@@ -31,6 +33,7 @@ const navItems: NavItem[] = [
   { label: 'Trading Bots', href: '/bots', icon: Bot, section: 'main' },
   { label: 'Market Analysis', href: '/market-analysis', icon: BarChart3, section: 'main' },
   { label: 'Performance', href: '/performance', icon: LineChart, section: 'main' },
+  { label: 'Education', href: '/education', icon: Book, section: 'main' },
   
   // Profile and related pages
   { label: 'Profile', href: '/profile', icon: User, section: 'profile' },

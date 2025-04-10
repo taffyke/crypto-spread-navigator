@@ -115,7 +115,7 @@ const Index = () => {
       return <Scanner />;
     } else if (path === '/bots') {
       return <Bots />;
-    } else if (path === '/analysis') {
+    } else if (path === '/analysis' || path === '/market-analysis') {
       return <MarketAnalysis />;
     } else if (path === '/performance') {
       return <Performance />;
