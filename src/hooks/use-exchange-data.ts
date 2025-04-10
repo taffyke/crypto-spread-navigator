@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useMultiTickerWebSocket } from './use-websocket';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+// Use import.meta.env instead of process.env for Vite compatibility
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 // Define expected parameters for useExchangeData
 interface ExchangeDataParams {
