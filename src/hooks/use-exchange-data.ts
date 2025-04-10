@@ -1,9 +1,18 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useMultiTickerWebSocket } from './use-websocket';
-import { useSettings } from '@/lib/contexts/SettingsContext';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+
+// Define expected parameters for useExchangeData
+interface ExchangeDataParams {
+  exchanges?: string[];
+  symbols?: string[];
+  refreshInterval?: number;
+  retryWebSocketInterval?: number;
+  fallbackToApi?: boolean;
+}
 
 // Fetch exchange metadata
 async function fetchExchangeData(exchangeIds?: string[]) {
@@ -20,11 +29,15 @@ async function fetchExchangeData(exchangeIds?: string[]) {
 }
 
 // Hook to fetch exchange metadata
-export function useExchangeData(exchangeIds?: string[]) {
+export function useExchangeData(params?: ExchangeDataParams) {
+    const exchangeIds = params?.exchanges;
+    const symbolsList = params?.symbols || [];
+    const refreshInterval = params?.refreshInterval || 30000;
+    
     const { data, isLoading, isError } = useQuery({
         queryKey: ['exchanges', exchangeIds],
         queryFn: () => fetchExchangeData(exchangeIds),
-        staleTime: 1000 * 60 * 5, // 5 minutes
+        staleTime: refreshInterval,
     });
 
     return useMemo(() => {
@@ -47,14 +60,14 @@ export function useExchangeData(exchangeIds?: string[]) {
     }, [data]);
 }
 
-// This is the corrected function that had the error:
+// Hook for WebSocket data with proper parameter handling
 export function useExchangeWebSocketData(exchangeIds: string[]) {
   // Get the exchange metadata for the specified exchanges
-  const exchangesData = useExchangeData(exchangeIds);
+  const exchangesData = useExchangeData({ exchanges: exchangeIds });
 
   // Get market data from WebSockets for the specified exchanges
-  // FIXED: Changed to use correct number of arguments
-  const { data: wsData, isConnected } = useMultiTickerWebSocket(exchangeIds);
+  // FIXED: Using proper typing and passing symbols as a string
+  const { data: wsData, isConnected } = useMultiTickerWebSocket(exchangeIds, 'BTC/USDT');
 
   // Combine the data
   const exchangesWithData = useMemo(() => {
