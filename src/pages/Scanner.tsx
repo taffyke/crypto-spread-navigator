@@ -191,7 +191,7 @@ const Scanner = () => {
               </div>
             </Card>
             
-            <NetworkRecommendations mode={activeMode} />
+            <NetworkRecommendations activeMode={activeMode} />
           </div>
           
           <div className="flex flex-col gap-6">
