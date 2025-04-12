@@ -6,6 +6,7 @@ import { useMultiTickerWebSocket } from '@/hooks/use-websocket';
 import { toast } from '@/hooks/use-toast';
 import { Ticker } from '@/lib/exchanges/exchangeApi';
 import { calculateProfitData } from '@/lib/api/cryptoDataApi';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export interface ProfitDataPoint {
   date: string;
@@ -134,70 +135,72 @@ const ProfitChart = ({ data: initialData, title, className, symbol = 'BTC/USDT' 
   }, [error]);
 
   return (
-    <div className={cn("bg-slate-800 border border-slate-700 rounded-lg p-4", className)}>
-      <div className="flex justify-between items-center mb-4">
-        {title && <h3 className="text-white font-medium">{title}</h3>}
+    <TooltipProvider>
+      <div className={cn("bg-slate-800 border border-slate-700 rounded-lg p-4", className)}>
+        <div className="flex justify-between items-center mb-4">
+          {title && <h3 className="text-white font-medium">{title}</h3>}
+          
+          {!isConnected?.binance && !isLoading && (
+            <div className="text-xs text-amber-500 bg-amber-950/30 rounded px-2 py-1">
+              Offline - Using latest data
+            </div>
+          )}
+          
+          {isConnected?.binance && (
+            <div className="text-xs text-green-500 bg-green-950/30 rounded px-2 py-1 flex items-center">
+              <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+              Live
+            </div>
+          )}
+        </div>
         
-        {!isConnected?.binance && !isLoading && (
-          <div className="text-xs text-amber-500 bg-amber-950/30 rounded px-2 py-1">
-            Offline - Using latest data
-          </div>
-        )}
-        
-        {isConnected?.binance && (
-          <div className="text-xs text-green-500 bg-green-950/30 rounded px-2 py-1 flex items-center">
-            <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-            Live
-          </div>
-        )}
+        <div className="h-[300px]">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 5, right: 20, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#a0aec0" 
+                  tick={{ fill: '#a0aec0', fontSize: 12 }}
+                />
+                <YAxis 
+                  stroke="#a0aec0"
+                  tick={{ fill: '#a0aec0', fontSize: 12 }}
+                  tickFormatter={(value) => `$${value}`}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Line 
+                  type="monotone" 
+                  dataKey="profit" 
+                  stroke="#10b981" 
+                  activeDot={{ r: 8 }} 
+                  name="Daily Profit" 
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="cumulativeProfit" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  name="Cumulative Profit" 
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-400">
+              No data available
+            </div>
+          )}
+        </div>
       </div>
-      
-      <div className="h-[300px]">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          </div>
-        ) : chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 5, right: 20, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
-              <XAxis 
-                dataKey="date" 
-                stroke="#a0aec0" 
-                tick={{ fill: '#a0aec0', fontSize: 12 }}
-              />
-              <YAxis 
-                stroke="#a0aec0"
-                tick={{ fill: '#a0aec0', fontSize: 12 }}
-                tickFormatter={(value) => `$${value}`}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="monotone" 
-                dataKey="profit" 
-                stroke="#10b981" 
-                activeDot={{ r: 8 }} 
-                name="Daily Profit" 
-              />
-              <Line 
-                type="monotone" 
-                dataKey="cumulativeProfit" 
-                stroke="#3b82f6" 
-                strokeWidth={2}
-                name="Cumulative Profit" 
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="flex items-center justify-center h-full text-slate-400">
-            No data available
-          </div>
-        )}
-      </div>
-    </div>
+    </TooltipProvider>
   );
 };
 

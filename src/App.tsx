@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -24,6 +25,7 @@ import {
 import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 // Import page components that were causing errors first to ensure they're defined
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
@@ -258,7 +260,7 @@ const AppLayout = () => {
         </div>
       </header>
 
-      <div className="flex flex-1 pt-16"> {/* Add padding-top to offset the fixed header */}
+      <div className="flex flex-1 pt-16">
         <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <main className="flex-1 transition-all duration-300">
           <div className={`py-6 pl-0 pr-6 ${sidebarCollapsed ? 'ml-[5px]' : 'ml-[5px]'}`}>
@@ -294,41 +296,43 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/index" element={<Index />} />
-              <Route path="/scanner" element={<Scanner />} />
-              <Route path="/performance" element={<Performance />} />
-              <Route path="/bots" element={<Bots />} />
-              <Route path="/market-analysis" element={<MarketAnalysis />} />
-              <Route path="/education" element={<Education />} />
-              
-              {/* Redirect standalone Portfolio and Alerts to profile tabs */}
-              <Route path="/portfolio" element={<Profile initialTab="portfolio" />} />
-              <Route path="/alerts" element={<Profile initialTab="alerts" />} />
-              
-              {/* Profile and profile sub-pages */}
-              <Route path="/profile" element={<Profile initialTab="profile" />} />
-              <Route path="/profile/portfolio" element={<Profile initialTab="portfolio" />} />
-              <Route path="/profile/alerts" element={<Profile initialTab="alerts" />} />
-              <Route path="/profile/risk" element={<Profile initialTab="risk" />} />
-              <Route path="/profile/settings" element={<Profile initialTab="settings" />} />
-              <Route path="/profile/apikeys" element={<Profile initialTab="apikeys" />} />
-              
-              {/* Footer pages */}
-              <Route path="/privacy" element={<PrivacyPolicy />} />
-              <Route path="/terms" element={<TermsOfService />} />
-              <Route path="/contact" element={<ContactUs />} />
-              
-              <Route path="/charts/:pair" element={<Charts />} />
-              
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-        <Toaster />
+        <TooltipProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/index" element={<Index />} />
+                <Route path="/scanner" element={<Scanner />} />
+                <Route path="/performance" element={<Performance />} />
+                <Route path="/bots" element={<Bots />} />
+                <Route path="/market-analysis" element={<MarketAnalysis />} />
+                <Route path="/education" element={<Education />} />
+                
+                {/* Redirect standalone Portfolio and Alerts to profile tabs */}
+                <Route path="/portfolio" element={<Profile initialTab="portfolio" />} />
+                <Route path="/alerts" element={<Profile initialTab="alerts" />} />
+                
+                {/* Profile and profile sub-pages */}
+                <Route path="/profile" element={<Profile initialTab="profile" />} />
+                <Route path="/profile/portfolio" element={<Profile initialTab="portfolio" />} />
+                <Route path="/profile/alerts" element={<Profile initialTab="alerts" />} />
+                <Route path="/profile/risk" element={<Profile initialTab="risk" />} />
+                <Route path="/profile/settings" element={<Profile initialTab="settings" />} />
+                <Route path="/profile/apikeys" element={<Profile initialTab="apikeys" />} />
+                
+                {/* Footer pages */}
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<TermsOfService />} />
+                <Route path="/contact" element={<ContactUs />} />
+                
+                <Route path="/charts/:pair" element={<Charts />} />
+                
+                <Route path="*" element={<NotFound />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+          <Toaster />
+        </TooltipProvider>
       </AppProvider>
     </QueryClientProvider>
   );

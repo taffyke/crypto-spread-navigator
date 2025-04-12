@@ -12,6 +12,7 @@ import { RefreshCw, Download } from 'lucide-react';
 import ArbitrageRiskCalculator from '@/components/scanner/ArbitrageRiskCalculator';
 import { toast } from '@/hooks/use-toast';
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 interface ArbitrageOpportunity {
   id: string;
@@ -116,91 +117,93 @@ const Scanner = () => {
   })) || [];
   
   return (
-    <div className="container mx-auto py-6">
-      <ArbitrageDashboard onModeChange={handleModeChange} />
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="lg:col-span-2">
-          <Card className="bg-slate-800 border-slate-700 mb-6">
-            <div className="p-4 flex justify-between items-center">
-              <h3 className="text-lg font-medium text-white">Arbitrage Opportunities</h3>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleRefresh}
-                  className="flex items-center gap-1"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  <span>Refresh</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleDownloadCSV}
-                  className="flex items-center gap-1"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>Export</span>
-                </Button>
-              </div>
-            </div>
-            <Separator className="bg-slate-700" />
-            <div className="px-4 py-3 bg-slate-850">
-              <ArbitrageFilters 
-                filters={{
-                  minSpread: minSpread,
-                  maxRiskLevel: 'any',
-                  minVolume: minVolume,
-                  exchanges: selectedExchanges,
-                  networks: [],
-                  pairs: [],
-                  arbitrageType: activeMode
-                }}
-                onFiltersChange={(filters) => {
-                  handleFiltersChange(
-                    filters.exchanges,
-                    filters.minSpread,
-                    filters.minVolume
-                  );
-                }}
-                availableExchanges={[
-                  'binance', 'bitfinex', 'coinbase', 'kraken', 'kucoin',
-                  'bybit', 'gate_io', 'gemini', 'poloniex', 'okx', 
-                  'ascendex', 'bitrue', 'htx', 'mexc_global', 'bitget'
-                ]}
-                availableNetworks={['ETH', 'BSC', 'Solana', 'Polygon', 'Avalanche']}
-                availablePairs={[
-                  'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ADA/USDT', 
-                  'BNB/USDT', 'DOT/USDT', 'XRP/USDT', 'DOGE/USDT',
-                  'AVAX/USDT', 'MATIC/USDT', 'LINK/USDT'
-                ]}
-                className="w-full"
-              />
-            </div>
-            <Separator className="bg-slate-700" />
-            <div className="p-0">
-              <ArbitrageTable 
-                opportunities={typedData}
-                isLoading={isLoading}
-                arbitrageType={activeMode}
-                onRefresh={refresh}
-              />
-            </div>
-          </Card>
-          
-          <NetworkRecommendations mode={activeMode} />
-        </div>
+    <TooltipProvider>
+      <div className="container mx-auto py-6">
+        <ArbitrageDashboard onModeChange={handleModeChange} />
         
-        <div className="flex flex-col gap-6">
-          <ArbitrageRiskCalculator />
-          <ExchangeArbitrage 
-            symbols={['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT']} 
-            minSpreadPercent={0.2}
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2">
+            <Card className="bg-slate-800 border-slate-700 mb-6">
+              <div className="p-4 flex justify-between items-center">
+                <h3 className="text-lg font-medium text-white">Arbitrage Opportunities</h3>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleRefresh}
+                    className="flex items-center gap-1"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Refresh</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleDownloadCSV}
+                    className="flex items-center gap-1"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Export</span>
+                  </Button>
+                </div>
+              </div>
+              <Separator className="bg-slate-700" />
+              <div className="px-4 py-3 bg-slate-850">
+                <ArbitrageFilters 
+                  filters={{
+                    minSpread: minSpread,
+                    maxRiskLevel: 'any',
+                    minVolume: minVolume,
+                    exchanges: selectedExchanges,
+                    networks: [],
+                    pairs: [],
+                    arbitrageType: activeMode
+                  }}
+                  onFiltersChange={(filters) => {
+                    handleFiltersChange(
+                      filters.exchanges,
+                      filters.minSpread,
+                      filters.minVolume
+                    );
+                  }}
+                  availableExchanges={[
+                    'binance', 'bitfinex', 'coinbase', 'kraken', 'kucoin',
+                    'bybit', 'gate_io', 'gemini', 'poloniex', 'okx', 
+                    'ascendex', 'bitrue', 'htx', 'mexc_global', 'bitget'
+                  ]}
+                  availableNetworks={['ETH', 'BSC', 'Solana', 'Polygon', 'Avalanche']}
+                  availablePairs={[
+                    'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ADA/USDT', 
+                    'BNB/USDT', 'DOT/USDT', 'XRP/USDT', 'DOGE/USDT',
+                    'AVAX/USDT', 'MATIC/USDT', 'LINK/USDT'
+                  ]}
+                  className="w-full"
+                />
+              </div>
+              <Separator className="bg-slate-700" />
+              <div className="p-0">
+                <ArbitrageTable 
+                  opportunities={typedData}
+                  isLoading={isLoading}
+                  arbitrageType={activeMode}
+                  onRefresh={refresh}
+                />
+              </div>
+            </Card>
+            
+            <NetworkRecommendations mode={activeMode} />
+          </div>
+          
+          <div className="flex flex-col gap-6">
+            <ArbitrageRiskCalculator />
+            <ExchangeArbitrage 
+              symbols={['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT']} 
+              minSpreadPercent={0.2}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 };
 
