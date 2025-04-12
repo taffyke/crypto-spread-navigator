@@ -21,12 +21,14 @@ export function ExchangeInfo({
 }: ExchangeInfoProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const { data, isLoading, isError, connectStatus, refresh } = useExchangeData({
-    symbols,
+  const { data, isLoading, isError, connectStatus, refresh } = useExchangeData(
     exchanges,
-    refreshInterval: 15000, // More frequent refreshes
-    fallbackToApi: true
-  });
+    symbols,
+    {
+      refreshInterval: 15000,
+      autoRefresh: true
+    }
+  );
   
   // Count connected exchanges
   const connectedCount = Object.values(connectStatus).filter(Boolean).length;
@@ -148,7 +150,7 @@ export function ExchangeInfo({
                             {exchange.replace('_', ' ')}
                           </span>
                           <span className={!isConnected ? 'text-slate-500' : ''}>
-                            ${ticker?.price.toFixed(2) || '-.--'}
+                            ${ticker?.price?.toFixed(2) || '-.--'}
                           </span>
                         </div>
                         {ticker?.changePercent24h !== undefined && (

@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from './use-toast';
-import { fetchMarketData } from '@/lib/api/cryptoDataApi';
+import { fetchExchangeTickerData, getFallbackTickerData } from '@/lib/api/cryptoDataApi';
 import { useQuery, RefetchOptions, QueryObserverResult } from '@tanstack/react-query';
 
 interface UseExchangeDataOptions {
@@ -11,23 +11,54 @@ interface UseExchangeDataOptions {
 }
 
 export function useExchangeData(
-  exchangeName: string,
+  exchangeName: string = '',
   symbols: string[] = [],
   options: UseExchangeDataOptions = {}
 ) {
-  const [connectStatus, setConnectStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
+  const [connectStatus, setConnectStatus] = useState<Record<string, boolean>>({});
 
   // Define fetchData as a useCallback
   const fetchData = useCallback(async ({ signal }: { signal?: AbortSignal } = {}) => {
+    const exchanges = Array.isArray(exchangeName) ? exchangeName : 
+                     exchangeName ? [exchangeName] : [];
+    
+    const results: Record<string, Record<string, any>> = {};
+    
     try {
-      setConnectStatus('connecting');
-      const exchangeData = await fetchMarketData(exchangeName, symbols, signal);
-      setConnectStatus('connected');
-      return exchangeData;
+      // If no exchanges specified, return empty results
+      if (exchanges.length === 0 && symbols.length === 0) {
+        return results;
+      }
+      
+      // Process each exchange and symbol
+      const promises = exchanges.map(async (exchange) => {
+        results[exchange] = {};
+        
+        // Process each symbol for this exchange
+        for (const symbol of symbols) {
+          try {
+            setConnectStatus(prev => ({ ...prev, [exchange]: false }));
+            
+            // Fetch ticker data for this exchange and symbol
+            const tickerData = await fetchExchangeTickerData(exchange, symbol);
+            results[exchange][symbol] = tickerData;
+            
+            setConnectStatus(prev => ({ ...prev, [exchange]: true }));
+          } catch (err) {
+            console.error(`Error fetching ${symbol} from ${exchange}:`, err);
+            
+            // Use fallback data when API fails
+            results[exchange][symbol] = getFallbackTickerData(exchange, symbol);
+            setConnectStatus(prev => ({ ...prev, [exchange]: false }));
+          }
+        }
+      });
+      
+      await Promise.allSettled(promises);
+      return results;
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
-        console.error(`Error fetching ${exchangeName} data:`, err);
-        setConnectStatus('disconnected');
+        console.error(`Error fetching exchange data:`, err);
       }
       throw err;
     }
@@ -53,7 +84,7 @@ export function useExchangeData(
   };
 
   return {
-    data,
+    data: data || {},
     isLoading,
     isError,
     refresh,

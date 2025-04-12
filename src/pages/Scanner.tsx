@@ -13,6 +13,22 @@ import ArbitrageRiskCalculator from '@/components/scanner/ArbitrageRiskCalculato
 import { toast } from '@/hooks/use-toast';
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
  
+// Define ArbitrageOpportunity interface for TypeScript type safety
+interface ArbitrageOpportunity {
+  id: string;
+  pair: string;
+  buyExchange: string;
+  sellExchange: string;
+  buyPrice: number;
+  sellPrice: number;
+  spreadPercentage: number;
+  timestamp: Date;
+  volume24h: number;
+  riskLevel: string;
+  recommendedNetworks?: string[];
+  type: string;
+}
+
 const Scanner = () => {
   const [activeMode, setActiveMode] = useState<'direct' | 'triangular' | 'futures'>('direct');
   const [selectedExchanges, setSelectedExchanges] = useState<string[]>([]);
@@ -164,15 +180,15 @@ const Scanner = () => {
             <Separator className="bg-slate-700" />
             <div className="p-0">
               <ArbitrageTable 
-                data={data || []}
+                opportunities={data || []}
                 isLoading={isLoading}
-                arbitrageType={activeMode}
+                type={activeMode}
               />
             </div>
           </Card>
           
           {/* Network Recommendations */}
-          <NetworkRecommendations activeMode={activeMode} />
+          <NetworkRecommendations mode={activeMode} />
         </div>
         
         {/* Right sidebar with risk calculator and exchange arbitrage */}
