@@ -133,6 +133,9 @@ const Index = () => {
       return <ComingSoonPage pageName="User Profile" />;
     } else if (path === '/settings') {
       return <ComingSoonPage pageName="Settings" />;
+    } else if (path.startsWith('/profile/')) {
+      const subpage = path.split('/profile/')[1];
+      return <ComingSoonPage pageName={`${subpage.charAt(0).toUpperCase() + subpage.slice(1)}`} />;
     }
     
     // Default to Dashboard for other routes
