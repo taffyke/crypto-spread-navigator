@@ -22,7 +22,7 @@ const MarketOverview = () => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
   // Use our enhanced useExchangeData hook for better reliability
-  const { data: exchangeData, isLoading: isExchangeLoading } = useExchangeData(
+  const { data: exchangeData, isLoading, isError } = useExchangeData(
     ['binance', 'coinbase', 'kraken'], // Pass exchanges as array
     coinPairs,
     { refreshInterval: 30000, autoRefresh: true }
@@ -126,11 +126,9 @@ const MarketOverview = () => {
     return Object.values(exchangeConnections).filter(Boolean).length;
   }, [exchangeConnections]);
   
-  const isExchangeLoading = true; // Simplified loading state
-  const isExchangeError = false; // Simplified error state
-  
-  const isLoading = (!marketData || marketData.length === 0) && (isExchangeLoading || isApiLoading);
-  const hasError = isExchangeError && (!marketData || marketData.length === 0);
+  // Simplified loading and error states
+  const isLoadingData = isLoading || isApiLoading;
+  const hasError = isError && (!marketData || marketData.length === 0);
   
   // Refresh function
   const handleRefresh = () => {
@@ -188,7 +186,7 @@ const MarketOverview = () => {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
+              {isLoadingData ? (
                 Array(6).fill(0).map((_, index) => (
                   <tr key={index} className="border-b border-slate-700/70">
                     <td colSpan={3} className="py-3">

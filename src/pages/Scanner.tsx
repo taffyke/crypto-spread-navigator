@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import ArbitrageFilters from '@/components/scanner/ArbitrageFilters';
 import ArbitrageTable from '@/components/scanner/ArbitrageTable';
@@ -182,12 +183,13 @@ const Scanner = () => {
               <ArbitrageTable 
                 opportunities={typedData}
                 isLoading={isLoading}
-                type={activeMode}
+                arbitrageType={activeMode}
+                onRefresh={refresh}
               />
             </div>
           </Card>
           
-          <NetworkRecommendations activeMode={activeMode} />
+          <NetworkRecommendations mode={activeMode} />
         </div>
         
         <div className="flex flex-col gap-6">
