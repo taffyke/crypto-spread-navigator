@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import ArbitrageFilters from '@/components/scanner/ArbitrageFilters';
 import ArbitrageTable from '@/components/scanner/ArbitrageTable';
@@ -12,8 +11,7 @@ import { RefreshCw, Download } from 'lucide-react';
 import ArbitrageRiskCalculator from '@/components/scanner/ArbitrageRiskCalculator';
 import { toast } from '@/hooks/use-toast';
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
- 
-// Define ArbitrageOpportunity interface for TypeScript type safety
+
 interface ArbitrageOpportunity {
   id: string;
   pair: string;
@@ -26,7 +24,7 @@ interface ArbitrageOpportunity {
   volume24h: number;
   riskLevel: string;
   recommendedNetworks?: string[];
-  type: string;
+  type: "direct" | "triangular" | "futures";
 }
 
 const Scanner = () => {
@@ -40,8 +38,8 @@ const Scanner = () => {
     selectedExchanges, 
     minSpread,
     minVolume,
-    true, // Auto refresh
-    { refreshInterval: 30000 } // Every 30 seconds
+    true,
+    { refreshInterval: 30000 }
   );
   
   const handleModeChange = (mode: string) => {
@@ -72,7 +70,6 @@ const Scanner = () => {
       return;
     }
     
-    // Format data for CSV
     const headers = [
       'Pair', 
       'Buy Exchange', 
@@ -112,13 +109,16 @@ const Scanner = () => {
     });
   };
   
+  const typedData = data?.map(opp => ({
+    ...opp,
+    type: opp.type as "direct" | "triangular" | "futures"
+  })) || [];
+  
   return (
     <div className="container mx-auto py-6">
-      {/* Dashboard Stats */}
       <ArbitrageDashboard onModeChange={handleModeChange} />
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Main arbitrage table with filters */}
         <div className="lg:col-span-2">
           <Card className="bg-slate-800 border-slate-700 mb-6">
             <div className="p-4 flex justify-between items-center">
@@ -180,18 +180,16 @@ const Scanner = () => {
             <Separator className="bg-slate-700" />
             <div className="p-0">
               <ArbitrageTable 
-                opportunities={data || []}
+                opportunities={typedData}
                 isLoading={isLoading}
                 type={activeMode}
               />
             </div>
           </Card>
           
-          {/* Network Recommendations */}
-          <NetworkRecommendations mode={activeMode} />
+          <NetworkRecommendations activeMode={activeMode} />
         </div>
         
-        {/* Right sidebar with risk calculator and exchange arbitrage */}
         <div className="flex flex-col gap-6">
           <ArbitrageRiskCalculator />
           <ExchangeArbitrage 

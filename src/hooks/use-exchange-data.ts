@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from './use-toast';
-import { fetchExchangeTickerData, getFallbackTickerData } from '@/lib/api/cryptoDataApi';
+import { fetchExchangeTickerData, getFallbackTickerData, SUPPORTED_EXCHANGES } from '@/lib/api/cryptoDataApi';
 import { useQuery, RefetchOptions, QueryObserverResult } from '@tanstack/react-query';
 
 interface UseExchangeDataOptions {
@@ -11,7 +11,7 @@ interface UseExchangeDataOptions {
 }
 
 export function useExchangeData(
-  exchangeName: string = '',
+  exchangeName: string | string[] = '',
   symbols: string[] = [],
   options: UseExchangeDataOptions = {}
 ) {
@@ -19,6 +19,7 @@ export function useExchangeData(
 
   // Define fetchData as a useCallback
   const fetchData = useCallback(async ({ signal }: { signal?: AbortSignal } = {}) => {
+    // Handle both string and string[] for exchangeName
     const exchanges = Array.isArray(exchangeName) ? exchangeName : 
                      exchangeName ? [exchangeName] : [];
     

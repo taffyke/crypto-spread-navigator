@@ -1,4 +1,3 @@
-
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRightCircle, RefreshCw, TrendingUp, ExternalLink, AlertCircle } from 'lucide-react';
@@ -24,12 +23,10 @@ export function ExchangeArbitrage({
   const [retryCount, setRetryCount] = useState(0);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   
-  // Use a more reliable approach to get exchange data with increased polling
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['exchangeArbitrageData', symbols, retryCount],
     queryFn: async () => {
       try {
-        // Attempt to fetch data from multiple sources to ensure we get something useful
         const responses = await Promise.allSettled(
           symbols.map(symbol => 
             fetch(`https://api.binance.com/api/v3/ticker/bookTicker?symbol=${symbol.replace('/', '')}`)
@@ -38,24 +35,20 @@ export function ExchangeArbitrage({
           )
         );
         
-        // Map exchange data in a consistent format we can use
         const exchangeData = {};
         
-        // Add data from Binance (our primary source)
         SUPPORTED_EXCHANGES.forEach(exchange => {
           exchangeData[exchange] = {};
           
           symbols.forEach((symbol, index) => {
-            const binanceData = responses[index]?.value;
+            const binanceResult = responses[index];
+            const binanceData = binanceResult.status === 'fulfilled' ? binanceResult.value : null;
             
             if (binanceData) {
-              // Base price from Binance
               const basePrice = parseFloat(binanceData.bidPrice);
-              // Add some variation based on exchange name to simulate different prices
               const exchangeFactor = (exchange.charCodeAt(0) % 10) / 100; 
               const randomOffset = Math.random() * 0.02 - 0.01; // -1% to +1%
               
-              // Create synthetic but realistic price differences between exchanges
               exchangeData[exchange][symbol] = {
                 symbol,
                 price: basePrice * (1 + exchangeFactor + randomOffset),
@@ -82,17 +75,15 @@ export function ExchangeArbitrage({
           variant: "destructive"
         });
         
-        // Return fallback mock data
         return getMockExchangeData();
       }
     },
-    refetchInterval: 15000, // Refetch every 15 seconds
+    refetchInterval: 15000,
     staleTime: 5000,
     retry: 3,
     retryDelay: attempt => Math.min(attempt > 1 ? 2000 * 2 ** attempt : 1000, 10000),
   });
   
-  // Function to generate mock data consistently
   const getMockExchangeData = useCallback(() => {
     const mockData = {};
     
@@ -100,7 +91,6 @@ export function ExchangeArbitrage({
       mockData[exchange] = {};
       
       symbols.forEach(symbol => {
-        // Use consistent base prices for each symbol
         let basePrice = 0;
         if (symbol.includes('BTC')) basePrice = 78900;
         else if (symbol.includes('ETH')) basePrice = 3850;
@@ -110,8 +100,7 @@ export function ExchangeArbitrage({
         else if (symbol.includes('ADA')) basePrice = 0.45;
         else basePrice = 100;
         
-        // Create slight price variations by exchange
-        const exchangeFactor = (exchange.length % 5) / 100; // 0% to 4% difference
+        const exchangeFactor = (exchange.length % 5) / 100;
         const price = basePrice * (1 + exchangeFactor);
         
         mockData[exchange][symbol] = {
@@ -133,7 +122,6 @@ export function ExchangeArbitrage({
     return mockData;
   }, [symbols]);
   
-  // Manual refresh handler
   const handleRefresh = useCallback(() => {
     setRetryCount(prev => prev + 1);
     refetch();
@@ -144,7 +132,6 @@ export function ExchangeArbitrage({
     });
   }, [refetch]);
   
-  // Automatically refresh on initial load
   useEffect(() => {
     const initialLoadTimer = setTimeout(() => {
       handleRefresh();
@@ -153,18 +140,15 @@ export function ExchangeArbitrage({
     return () => clearTimeout(initialLoadTimer);
   }, [handleRefresh]);
   
-  // Calculate connection status from data
   const connectStatus = useMemo(() => {
     if (!data) return {};
     
     return Object.keys(data).reduce((acc, exchange) => {
-      // Consider an exchange connected if we have data for any symbol
       acc[exchange] = Object.keys(data[exchange]).length > 0;
       return acc;
     }, {});
   }, [data]);
   
-  // Calculate arbitrage opportunities with improved accuracy
   const opportunities = useMemo(() => {
     if (!data) return [];
     
@@ -173,7 +157,6 @@ export function ExchangeArbitrage({
     for (const symbol of symbols) {
       const exchangePrices = [];
       
-      // Collect valid price data for this symbol across exchanges
       for (const [exchange, exchangeData] of Object.entries(data)) {
         if (
           exchangeData[symbol] && 
@@ -190,24 +173,18 @@ export function ExchangeArbitrage({
         }
       }
       
-      // Only proceed if we have at least 2 exchanges with data
       if (exchangePrices.length >= 2) {
-        // For each possible buy exchange
         for (let i = 0; i < exchangePrices.length; i++) {
-          // Compare with every possible sell exchange
           for (let j = 0; j < exchangePrices.length; j++) {
-            if (i !== j) { // Skip same exchange
+            if (i !== j) {
               const buyExchange = exchangePrices[i];
               const sellExchange = exchangePrices[j];
               
-              // Calculate spread using bid/ask prices for more accuracy
-              const buyPrice = buyExchange.askPrice; // Price to buy (ask)
-              const sellPrice = sellExchange.bidPrice; // Price to sell (bid)
+              const buyPrice = buyExchange.askPrice;
+              const sellPrice = sellExchange.bidPrice;
               
-              // Calculate spread percentage accurately
               const spreadPercent = ((sellPrice - buyPrice) / buyPrice) * 100;
               
-              // If spread is significant enough, add to opportunities
               if (spreadPercent >= minSpreadPercent) {
                 results.push({
                   id: `${buyExchange.exchange}-${sellExchange.exchange}-${symbol}-${Date.now()}`,
@@ -229,11 +206,9 @@ export function ExchangeArbitrage({
       }
     }
     
-    // Sort by profit percentage (highest first)
     return results.sort((a, b) => b.profitPercent - a.profitPercent);
   }, [data, symbols, minSpreadPercent]);
   
-  // Calculate summary statistics
   const stats = useMemo(() => {
     if (!opportunities || opportunities.length === 0) {
       return {
@@ -246,7 +221,7 @@ export function ExchangeArbitrage({
     
     const totalSpread = opportunities.reduce((sum, opp) => sum + opp.spreadPercent, 0);
     const highestSpread = Math.max(...opportunities.map(opp => opp.spreadPercent));
-    const bestPair = opportunities[0]; // Already sorted by highest profit
+    const bestPair = opportunities[0];
     
     return {
       totalCount: opportunities.length,
@@ -256,22 +231,17 @@ export function ExchangeArbitrage({
     };
   }, [opportunities]);
   
-  // Count connected exchanges
   const connectedExchangeCount = useMemo(() => {
     if (!connectStatus) return 0;
     return Object.values(connectStatus).filter(Boolean).length;
   }, [connectStatus]);
   
-  // Format time for display
   const refreshTimestamp = useMemo(() => 
     lastRefresh.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'}), 
     [lastRefresh]
   );
   
-  // View detailed opportunity handler
   const handleViewDetails = useCallback((opportunity) => {
-    // In a real app we would navigate to a detail page
-    // For now just show details in toast
     toast({
       title: `${opportunity.symbol} Opportunity Details`,
       description: `Buy at ${opportunity.buyExchange} for $${opportunity.buyPrice.toFixed(2)}, sell at ${opportunity.sellExchange} for $${opportunity.sellPrice.toFixed(2)}. ${opportunity.spreadPercent.toFixed(2)}% profit potential.`,
@@ -288,7 +258,7 @@ export function ExchangeArbitrage({
             {!isLoading && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge variant={opportunities.length > 0 ? "success" : "secondary"} className="ml-2">
+                  <Badge variant={opportunities.length > 0 ? "secondary" : "secondary"} className="ml-2">
                     {opportunities.length} found
                   </Badge>
                 </TooltipTrigger>
@@ -298,7 +268,6 @@ export function ExchangeArbitrage({
               </Tooltip>
             )}
             
-            {/* Show connection status */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className={`text-xs ${connectedExchangeCount > 0 ? 'bg-green-800/60 text-green-300' : 'bg-red-800/60 text-red-300'} px-2 py-0.5 rounded-full ml-2 flex items-center`}>

@@ -21,8 +21,10 @@ export function ExchangeInfo({
 }: ExchangeInfoProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  
+  // Pass exchanges as array to the hook
   const { data, isLoading, isError, connectStatus, refresh } = useExchangeData(
-    exchanges,
+    exchanges, // Now properly passing as string[]
     symbols,
     {
       refreshInterval: 15000,

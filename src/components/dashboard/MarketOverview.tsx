@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, RefreshCw, AlertTriangle } from 'lucide-react';
@@ -23,13 +22,11 @@ const MarketOverview = () => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
   // Use our enhanced useExchangeData hook for better reliability
-  const exchangeParams = {
-    symbols: coinPairs,
-    exchanges: ['binance', 'coinbase', 'kraken'], // Use 3 major exchanges for reliable market data
-    refreshInterval: 30000
-  };
-  
-  const exchangeData = useExchangeData(exchangeParams);
+  const { data: exchangeData, isLoading: isExchangeLoading } = useExchangeData(
+    ['binance', 'coinbase', 'kraken'], // Pass exchanges as array
+    coinPairs,
+    { refreshInterval: 30000, autoRefresh: true }
+  );
   
   // Use React Query as a backup for market data
   const { 
@@ -51,7 +48,7 @@ const MarketOverview = () => {
   
   // Process exchange data into market data format
   const exchangeMarketData = useMemo(() => {
-    if (!exchangeData || exchangeData.length === 0) {
+    if (!exchangeData || Object.keys(exchangeData).length === 0) {
       return [];
     }
     
@@ -66,16 +63,16 @@ const MarketOverview = () => {
       let tickerData: TickerData | undefined;
       
       for (const preferredExchange of ['binance', 'coinbase', 'kraken']) {
-        if (exchangeData[0]?.[preferredExchange]?.[pair] && 
-            typeof exchangeData[0]?.[preferredExchange][pair].price === 'number') {
-          tickerData = exchangeData[0][preferredExchange][pair];
+        if (exchangeData[preferredExchange]?.[pair] && 
+            typeof exchangeData[preferredExchange][pair].price === 'number') {
+          tickerData = exchangeData[preferredExchange][pair];
           break;
         }
       }
       
       // If we still don't have data, try any exchange
-      if (!tickerData && exchangeData[0]) {
-        for (const [exchange, exchangeTickers] of Object.entries(exchangeData[0])) {
+      if (!tickerData) {
+        for (const [exchange, exchangeTickers] of Object.entries(exchangeData)) {
           if (exchangeTickers && exchangeTickers[pair] && typeof exchangeTickers[pair].price === 'number') {
             tickerData = exchangeTickers[pair];
             break;
