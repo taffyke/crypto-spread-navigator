@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { ArbitrageFilters } from '@/components/scanner/ArbitrageFilters';
-import { ArbitrageTable } from '@/components/scanner/ArbitrageTable';
+import ArbitrageFilters from '@/components/scanner/ArbitrageFilters';
+import ArbitrageTable from '@/components/scanner/ArbitrageTable';
 import { NetworkRecommendations } from '@/components/scanner/NetworkRecommendations';
 import ExchangeArbitrage from '@/components/ExchangeArbitrage';
 import { ArbitrageDashboard } from '@/components/scanner/ArbitrageDashboard';
@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Download } from 'lucide-react';
-import { ArbitrageRiskCalculator } from '@/components/scanner/ArbitrageRiskCalculator';
+import ArbitrageRiskCalculator from '@/components/scanner/ArbitrageRiskCalculator';
 import { toast } from '@/hooks/use-toast';
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
  
@@ -131,8 +131,34 @@ const Scanner = () => {
             <Separator className="bg-slate-700" />
             <div className="px-4 py-3 bg-slate-850">
               <ArbitrageFilters 
-                activeMode={activeMode}
-                onFiltersChange={handleFiltersChange}
+                filters={{
+                  minSpread: minSpread,
+                  maxRiskLevel: 'any',
+                  minVolume: minVolume,
+                  exchanges: selectedExchanges,
+                  networks: [],
+                  pairs: [],
+                  arbitrageType: activeMode
+                }}
+                onFiltersChange={(filters) => {
+                  handleFiltersChange(
+                    filters.exchanges,
+                    filters.minSpread,
+                    filters.minVolume
+                  );
+                }}
+                availableExchanges={[
+                  'binance', 'bitfinex', 'coinbase', 'kraken', 'kucoin',
+                  'bybit', 'gate_io', 'gemini', 'poloniex', 'okx', 
+                  'ascendex', 'bitrue', 'htx', 'mexc_global', 'bitget'
+                ]}
+                availableNetworks={['ETH', 'BSC', 'Solana', 'Polygon', 'Avalanche']}
+                availablePairs={[
+                  'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ADA/USDT', 
+                  'BNB/USDT', 'DOT/USDT', 'XRP/USDT', 'DOGE/USDT',
+                  'AVAX/USDT', 'MATIC/USDT', 'LINK/USDT'
+                ]}
+                className="w-full"
               />
             </div>
             <Separator className="bg-slate-700" />
