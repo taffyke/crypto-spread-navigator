@@ -8,7 +8,11 @@ import { useQuery } from '@tanstack/react-query';
 
 const networks = ['ETH', 'BSC', 'SOL', 'TRX', 'ARBITRUM', 'OPTIMISM', 'POLYGON', 'AVALANCHE'];
 
-export function NetworkRecommendations() {
+interface NetworkRecommendationsProps {
+  activeMode?: 'direct' | 'triangular' | 'futures';
+}
+
+export function NetworkRecommendations({ activeMode = 'direct' }: NetworkRecommendationsProps) {
   const [expandedNetwork, setExpandedNetwork] = useState<string | null>(null);
   
   const toggleNetwork = (network: string) => {
