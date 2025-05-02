@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { useRouter } from 'next/router';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState(null);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check if user is already logged in
@@ -23,7 +23,7 @@ export default function Auth() {
       (event, session) => {
         setSession(session);
         if (session) {
-          router.push('/');
+          navigate('/');
         }
       }
     );
@@ -32,12 +32,12 @@ export default function Auth() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        router.push('/');
+        navigate('/');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +85,7 @@ export default function Auth() {
         description: "You have been logged in.",
         variant: "default",
       });
-      router.push('/');
+      navigate('/');
     }
     setLoading(false);
   };

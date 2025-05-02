@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogIn, Settings, AlertCircle, RefreshCw } from 'lucide-react';
-import { useRouter } from 'next/router';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useMarketData } from '@/hooks/use-market-data';
@@ -13,7 +13,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [exchanges, setExchanges] = useState<string[]>([]);
   const [selectedExchange, setSelectedExchange] = useState<string>('');
-  const router = useRouter();
+  const navigate = useNavigate();
 
   // Default symbols to track
   const symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT'];
@@ -99,12 +99,12 @@ export default function HomePage() {
         <h1 className="text-2xl font-bold text-white">Market Explorer</h1>
         <div className="flex gap-2">
           {user ? (
-            <Button onClick={() => router.push('/settings')} variant="outline" className="flex items-center gap-1.5">
+            <Button onClick={() => navigate('/settings')} variant="outline" className="flex items-center gap-1.5">
               <Settings className="h-4 w-4" />
               <span>Settings</span>
             </Button>
           ) : (
-            <Button onClick={() => router.push('/auth')} variant="default" className="flex items-center gap-1.5">
+            <Button onClick={() => navigate('/auth')} variant="default" className="flex items-center gap-1.5">
               <LogIn className="h-4 w-4" />
               <span>Login</span>
             </Button>
@@ -121,7 +121,7 @@ export default function HomePage() {
               Please log in to access your exchange data and market information. 
               Add your API keys to start tracking cryptocurrency prices in real-time.
             </p>
-            <Button onClick={() => router.push('/auth')}>
+            <Button onClick={() => navigate('/auth')}>
               Login or Create Account
             </Button>
           </CardContent>
@@ -135,7 +135,7 @@ export default function HomePage() {
               You need to add exchange API keys to fetch market data.
               Go to Settings to add your first API key.
             </p>
-            <Button onClick={() => router.push('/settings')}>
+            <Button onClick={() => navigate('/settings')}>
               Add API Keys
             </Button>
           </CardContent>

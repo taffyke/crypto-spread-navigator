@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { useRouter } from 'next/router';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -13,7 +13,7 @@ export default function Settings() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addingNewKey, setAddingNewKey] = useState(false);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check if user is already logged in
@@ -23,7 +23,7 @@ export default function Settings() {
         setLoading(false);
         
         if (!session?.user) {
-          router.push('/auth');
+          navigate('/auth');
         }
       }
     );
@@ -34,12 +34,12 @@ export default function Settings() {
       setLoading(false);
       
       if (!session?.user) {
-        router.push('/auth');
+        navigate('/auth');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [navigate]);
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -56,7 +56,7 @@ export default function Settings() {
         description: "You have been logged out.",
         variant: "default",
       });
-      router.push('/auth');
+      navigate('/auth');
     }
   };
 
@@ -80,7 +80,7 @@ export default function Settings() {
             <p className="text-slate-400 mb-6">
               Please log in to access your account settings.
             </p>
-            <Button onClick={() => router.push('/auth')}>
+            <Button onClick={() => navigate('/auth')}>
               Go to Login
             </Button>
           </CardContent>

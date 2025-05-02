@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { useRouter } from 'next/router';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ export default function AddApiKeyForm({ onBack }: { onBack: () => void }) {
   const [apiSecret, setApiSecret] = useState('');
   const [apiPassphrase, setApiPassphrase] = useState('');
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const supportedExchanges = Object.values(EXCHANGE_CONFIGS).map(config => ({
     id: config.id,
@@ -40,6 +41,7 @@ export default function AddApiKeyForm({ onBack }: { onBack: () => void }) {
       const { data, error } = await supabase
         .from('exchange_api_keys')
         .insert({
+          user_id: user.id, // Add the user_id field
           exchange_name: exchangeName,
           label: label || null, // Use null if empty string
           api_key: apiKey,

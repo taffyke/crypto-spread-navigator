@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -38,7 +37,7 @@ import Dashboard from '@/pages/Dashboard';
 import Scanner from '@/pages/Scanner';
 import Performance from '@/pages/Performance';
 import Bots from '@/pages/Bots';
-import Index from '@/pages/Index';
+import Index from '@/pages/index'; // Fixed casing here
 import Profile from '@/pages/Profile';
 import Portfolio from '@/pages/Portfolio';
 import Alerts from '@/pages/Alerts';
@@ -46,6 +45,8 @@ import MarketAnalysis from '@/pages/MarketAnalysis';
 import Sidebar from '@/components/layout/Sidebar';
 import Charts from '@/pages/Charts';
 import Education from '@/pages/Education';
+import Auth from '@/pages/auth'; // Added import for Auth page
+import Settings from '@/pages/settings'; // Added import for Settings page
 
 // Create a client
 const queryClient = new QueryClient({
@@ -307,6 +308,8 @@ function App() {
                 <Route path="/bots" element={<Bots />} />
                 <Route path="/market-analysis" element={<MarketAnalysis />} />
                 <Route path="/education" element={<Education />} />
+                <Route path="/auth" element={<Auth />} /> {/* Added Auth route */}
+                <Route path="/settings" element={<Settings />} /> {/* Added Settings route */}
                 
                 {/* Redirect standalone Portfolio and Alerts to profile tabs */}
                 <Route path="/portfolio" element={<Profile initialTab="portfolio" />} />
