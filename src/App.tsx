@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -10,7 +11,7 @@ import {
   Link,
   useNavigate
 } from 'react-router-dom';
-import { Search, User, Bell, Settings, LogOut, HelpCircle, Loader2 } from 'lucide-react';
+import { Search, User, Bell, Settings as SettingsIcon, LogOut, HelpCircle, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { 
@@ -37,7 +38,7 @@ import Dashboard from '@/pages/Dashboard';
 import Scanner from '@/pages/Scanner';
 import Performance from '@/pages/Performance';
 import Bots from '@/pages/Bots';
-import Index from '@/pages/index'; // Fixed casing here
+import HomePage from '@/pages/index'; // Renamed to HomePage to avoid casing issues
 import Profile from '@/pages/Profile';
 import Portfolio from '@/pages/Portfolio';
 import Alerts from '@/pages/Alerts';
@@ -246,7 +247,7 @@ const AppLayout = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem className="hover:bg-slate-700 cursor-pointer">
                   <Link to="/profile/settings" className="flex items-center w-full">
-                    <Settings className="mr-2 h-4 w-4" />
+                    <SettingsIcon className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </Link>
                 </DropdownMenuItem>
@@ -302,7 +303,7 @@ function App() {
             <Routes>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/index" element={<Index />} />
+                <Route path="/index" element={<HomePage />} /> {/* Updated to use HomePage */}
                 <Route path="/scanner" element={<Scanner />} />
                 <Route path="/performance" element={<Performance />} />
                 <Route path="/bots" element={<Bots />} />
