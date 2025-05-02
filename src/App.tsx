@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -38,7 +37,7 @@ import Dashboard from '@/pages/Dashboard';
 import Scanner from '@/pages/Scanner';
 import Performance from '@/pages/Performance';
 import Bots from '@/pages/Bots';
-import HomePage from '@/pages/index'; // Renamed to HomePage to avoid casing issues
+import HomePage from './pages/index'; // Direct import with relative path to avoid casing issues
 import Profile from '@/pages/Profile';
 import Portfolio from '@/pages/Portfolio';
 import Alerts from '@/pages/Alerts';
@@ -303,7 +302,7 @@ function App() {
             <Routes>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/index" element={<HomePage />} /> {/* Updated to use HomePage */}
+                <Route path="/index" element={<HomePage />} /> {/* Using HomePage component */}
                 <Route path="/scanner" element={<Scanner />} />
                 <Route path="/performance" element={<Performance />} />
                 <Route path="/bots" element={<Bots />} />
