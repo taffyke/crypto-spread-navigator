@@ -3,6 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Download } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Card } from '@/components/ui/card';
 
 interface ScannerHeaderProps {
   onRefresh: () => void;

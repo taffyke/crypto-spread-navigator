@@ -3,7 +3,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import ArbitrageFilters from '@/components/scanner/ArbitrageFilters';
-import ArbitrageTable from '@/components/scanner/ArbitrageTable';
+import ArbitrageTable, { ArbitrageOpportunity } from '@/components/scanner/ArbitrageTable';
 import { useArbitrageData } from '@/hooks/use-arbitrage-data';
 import { toast } from '@/hooks/use-toast';
 import { ScannerHeader } from '@/components/scanner/ScannerHeader';
@@ -89,6 +89,12 @@ export function ScannerContent({
     });
   };
 
+  // Convert the data to the correct type expected by ArbitrageTable
+  const typedData: ArbitrageOpportunity[] = data ? data.map(item => ({
+    ...item,
+    type: activeMode as "direct" | "triangular" | "futures"
+  })) : [];
+
   return (
     <Card className="bg-slate-800 border-slate-700 mb-6">
       <ScannerHeader 
@@ -132,7 +138,7 @@ export function ScannerContent({
       <Separator className="bg-slate-700" />
       <div className="p-0">
         <ArbitrageTable 
-          opportunities={data || []}
+          opportunities={typedData}
           isLoading={isLoading}
           arbitrageType={activeMode}
           onRefresh={refresh}
