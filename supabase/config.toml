@@ -1,1 +1,11 @@
+
 project_id = "adhfkeibzwevbnjdaptg"
+
+[api]
+enabled = true
+
+[db]
+shadow_database_flag = true
+
+[functions.fetch-market-data]
+verify_jwt = true

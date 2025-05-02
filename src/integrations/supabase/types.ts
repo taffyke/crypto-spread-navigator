@@ -9,7 +9,123 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      exchange_api_keys: {
+        Row: {
+          api_key: string
+          api_passphrase: string | null
+          api_secret: string
+          created_at: string | null
+          exchange_name: string
+          id: string
+          is_active: boolean | null
+          label: string | null
+          last_used_at: string | null
+          metadata: Json | null
+          permissions: string[] | null
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          api_passphrase?: string | null
+          api_secret: string
+          created_at?: string | null
+          exchange_name: string
+          id?: string
+          is_active?: boolean | null
+          label?: string | null
+          last_used_at?: string | null
+          metadata?: Json | null
+          permissions?: string[] | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          api_passphrase?: string | null
+          api_secret?: string
+          created_at?: string | null
+          exchange_name?: string
+          id?: string
+          is_active?: boolean | null
+          label?: string | null
+          last_used_at?: string | null
+          metadata?: Json | null
+          permissions?: string[] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      market_data: {
+        Row: {
+          ask_price: number | null
+          bid_price: number | null
+          change_percent_24h: number | null
+          exchange_name: string
+          high_24h: number | null
+          id: string
+          low_24h: number | null
+          metadata: Json | null
+          price: number | null
+          symbol: string
+          timestamp: string | null
+          volume: number | null
+        }
+        Insert: {
+          ask_price?: number | null
+          bid_price?: number | null
+          change_percent_24h?: number | null
+          exchange_name: string
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          metadata?: Json | null
+          price?: number | null
+          symbol: string
+          timestamp?: string | null
+          volume?: number | null
+        }
+        Update: {
+          ask_price?: number | null
+          bid_price?: number | null
+          change_percent_24h?: number | null
+          exchange_name?: string
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          metadata?: Json | null
+          price?: number | null
+          symbol?: string
+          timestamp?: string | null
+          volume?: number | null
+        }
+        Relationships: []
+      }
+      watchlist: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_favorite: boolean | null
+          metadata: Json | null
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_favorite?: boolean | null
+          metadata?: Json | null
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_favorite?: boolean | null
+          metadata?: Json | null
+          symbol?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
